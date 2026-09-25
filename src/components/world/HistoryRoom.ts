@@ -324,5 +324,5 @@ export function buildHistoryRoom(ctx: Ctx, parent: Node) {
 
   lazy.forEach((f) => ctx.defer(f));
 
-  return { colliders };
+  return { colliders, root };
 }

@@ -13,6 +13,7 @@ const AVE_X1 = 40;
 export interface CityApi {
   /** parking spots: x, z, heading */
   spots: { x: number; z: number; heading: number }[];
+  root: TransformNode;
 }
 
 export function buildCity(ctx: Ctx, parent: Node): CityApi {
@@ -212,5 +213,5 @@ export function buildCity(ctx: Ctx, parent: Node): CityApi {
 
   lazy.forEach((f) => ctx.defer(f));
 
-  return { spots };
+  return { spots, root };
 }

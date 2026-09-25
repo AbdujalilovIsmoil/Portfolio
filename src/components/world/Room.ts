@@ -286,5 +286,5 @@ export function buildRoom(ctx: Ctx, parent: import("@babylonjs/core").Node) {
   for (const [lx, lz] of [[-3.5, 0], [3.5, 0], [-2.6, -3], [3.5, 3]]) addPendant(ctx, root, lx, lz, ROOM_H, "#ffe6c0", 9, 12);
   staticLight(ctx, root, [-1.7, 1.6, dz + 0.3], "#ffcf8a", 2.5, 5);
 
-  return { anchors, colliders };
+  return { anchors, colliders, root };
 }

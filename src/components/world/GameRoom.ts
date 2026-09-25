@@ -161,5 +161,5 @@ export function buildGameRoom(
     }
   });
 
-  return { colliders };
+  return { colliders, root };
 }

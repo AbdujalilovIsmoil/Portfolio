@@ -14,10 +14,11 @@ import {
   Scene,
   ShadowGenerator,
   Vector3,
+  type TransformNode,
 } from "@babylonjs/core";
 import { buildCameraRig } from "./CameraRig";
 import { buildCharacter } from "./Character";
-import { buildRoom, ROOM_HX, ROOM_HZ } from "./Room";
+import { buildRoom } from "./Room";
 import { buildGameRoom, GAME_REGION } from "./GameRoom";
 import { buildMuseum, MUSEUM_REGION } from "./Museum";
 import { buildHistoryRoom, HISTORY_REGION } from "./HistoryRoom";
@@ -29,13 +30,14 @@ import { buildTestimonialsRoom, TEST_REGION } from "./TestimonialsRoom";
 import { buildAchievementsRoom, ACH_REGION } from "./AchievementsRoom";
 import { buildCity, CITY_REGION } from "./City";
 import { buildVehicles } from "./Vehicle";
-import { buildStairs, groundY, STAIRS_REGIONS } from "./Stairs";
+import { OFFICE_REGION, WALK_REGIONS } from "./regions";
+import { buildStairs, groundY } from "./Stairs";
 import type { ExhibitSignal } from "./exhibitSignal";
 import type { PsSignal } from "./psSignal";
-import { buildCorridor, CORRIDOR_REGIONS } from "./Corridor";
+import { buildCorridor } from "./Corridor";
 import { createDoorSystem } from "./Doors";
 import type { DoorSignal } from "./doorSignal";
-import { LIGHT_SCALE, group, linear, type Anchor, type Ctx } from "./core";
+import { LIGHT_SCALE, group, linear, type Anchor, type Ctx, type Region } from "./core";
 import { getIsLowPowerDevice } from "./performanceTier";
 import { setLoading } from "./loadingSignal";
 import { useWorldInput } from "./WorldInputContext";
@@ -140,7 +142,7 @@ export default function World({ teleportRef, introRef, accentRef, flightRef, psR
       colliders: [],
       exhibits: [],
       groundY,
-      regions: [{ x0: -ROOM_HX, x1: ROOM_HX, z0: -ROOM_HZ, z1: ROOM_HZ }, ...CORRIDOR_REGIONS, GAME_REGION, MUSEUM_REGION, HISTORY_REGION, TECH_REGION, TEST_REGION, ACH_REGION, ...STAIRS_REGIONS, CITY_REGION],
+      regions: WALK_REGIONS,
       time: 0,
       onFrame(fn) {
         frameFns.add(fn);
@@ -256,6 +258,48 @@ export default function World({ teleportRef, introRef, accentRef, flightRef, psR
     modelReady.catch((e) => {
       console.error("Character failed to load", e);
       setLoading(100, false);
+    });
+
+    // Rooms far from the player are switched off entirely (no draw calls, no shadow casting).
+    const gated: { node: TransformNode; region: Region }[] = [
+      { node: room.root, region: OFFICE_REGION },
+      { node: game.root, region: GAME_REGION },
+      { node: museum.root, region: MUSEUM_REGION },
+      { node: history.root, region: HISTORY_REGION },
+      { node: tech.root, region: TECH_REGION },
+      { node: testimonials.root, region: TEST_REGION },
+      { node: ach.root, region: ACH_REGION },
+      { node: city.root, region: CITY_REGION },
+    ];
+    let gateClock = 0;
+    ctx.onFrame((dt) => {
+      gateClock -= dt;
+      if (gateClock > 0) return;
+      gateClock = 0.25;
+      const { x, z } = ctx.player;
+      for (const g of gated) {
+        const margin = g.node === city.root ? 14 : 9;
+        const near = x > g.region.x0 - margin && x < g.region.x1 + margin && z > g.region.z0 - margin && z < g.region.z1 + margin;
+        if (g.node.isEnabled(false) !== near) g.node.setEnabled(near);
+      }
+    });
+
+    // Adaptive resolution: if the frame rate sags below ~60, render fewer pixels; recover when there is headroom.
+    const baseScale = 1 / Math.min(Math.max(window.devicePixelRatio || 1, 1), lowPower ? 1 : 1.25);
+    let scale = baseScale;
+    let qualityClock = 2;
+    ctx.onFrame((dt) => {
+      qualityClock -= dt;
+      if (qualityClock > 0 || document.hidden) return;
+      qualityClock = 1.2;
+      const fps = engine.getFps();
+      let next = scale;
+      if (fps < 54 && scale < baseScale * 1.8) next = scale * 1.1;
+      else if (fps > 59 && scale > baseScale) next = Math.max(baseScale, scale / 1.05);
+      if (next !== scale) {
+        scale = next;
+        engine.setHardwareScalingLevel(scale);
+      }
     });
 
     engine.runRenderLoop(() => {
