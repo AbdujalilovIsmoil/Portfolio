@@ -19,13 +19,14 @@ const poppins = Poppins({
 const raleway = Raleway({
   variable: "--font-raleway",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800", "900"],
+  // Raleway is a variable font: one file covers every weight. Listing weights explicitly makes
+  // Turbopack on Vercel fail ("next/font/google queries have exactly one entry").
 });
 
 export const metadata: Metadata = {
   title: "Interactive 3D World",
   description:
-    "An interactive, walkable 3D grass field built with Next.js, Three.js and React Three Fiber.",
+    "An interactive, walkable 3D portfolio built with Next.js and Babylon.js.",
   icons: {
     icon: "/favicon.png",
     apple: "/apple-touch-icon.png",
