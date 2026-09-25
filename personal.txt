@@ -1,0 +1,65 @@
+Abdujalilov Ismoil                                                          Frontend (React) Engineer
+LinkedIn: Ismoil Abdujalilov                                                           Github: github.com/AbdujalilovIsmoil
+Portfolio: abdujalilovismoil.uz					          Email: ismoilbek.abdujalilov@gmail.com
+
+Education
+Najot Ta’lim - Frontend Development                                                                            August 2022 - January 2023
+Gained a strong foundation in HTML, CSS, SCSS, Bootstrap/MDBootstrap, JavaScript, React, Redux, and Redux Toolkit through hands-on practice and project-based learning.
+Developed multiple mini projects simulating real-world scenarios to reinforce practical front-end development skills.
+Collaborated effectively in team-based coding projects at Najot Ta’lim, enhancing teamwork and communication abilities.
+Mentored peers and provided technical support, contributing to a collaborative and growth-oriented learning environment.
+Alfraganus University - Computer Engineering | Full Time                       September 2024 - Present
+Explored Prompt Engineering and its applications in AI-assisted development.
+Solved 400+ algorithm and data structure problems on LeetCode and Codewars, strengthening analytical and coding skills.
+Studied and applied core concepts of algorithms, data structures, and optimization techniques.
+Conducted frontend development classes for students, mentoring beginners in React, TypeScript, and modern web technologies.
+Experience
+Frontend Engineer | Shams Learning Center | Contract                                    May 2025 -  April 2026
+old.shamsoquvmarkaz.uz – Developed a modern, multilingual educational website using Next.js and React to present courses, achievements, and community impact. Implemented full internationalization with Uzbek, Russian, English, and Arabic (RTL) support, delivering a responsive and accessible user experience across all devices. The platform highlights 1,700+ graduates and a 12,000+ member community, strengthening the center’s digital presence and supporting audience growth through a performant, user-friendly interface.
+shamsoquvmarkaz.uz - Built a custom CMS with Admin Panel, REST API, and rich-text editing, including a custom CKEditor 5 plugin for interactive image carousels. Developed accessible, multilingual UI components, redesigned mobile navigation with animated transitions, and improved SEO with JSON-LD and Open Graph metadata.
+@Shams_asisstant_bot - Developed a production-ready AI-powered Telegram assistant using Node.js and the Telegram Bot API, delivering real-time, interactive messaging with inline keyboards and command-based workflows. Integrated generative AI for dynamic responses and deployed the bot on a VPS with PM2 for 24/7 uptime, secure environment variable management, robust error handling, and rate-limit controls. Led the migration from Google Gemini API to ChatGPT API to support higher request volumes and improved token handling, resulting in more reliable and scalable AI interactions.
+
+Frontend & UI/UX Teacher| Ixlos School | Part Time                                     February 2026 - April 2026
+Introduced students to AI platforms and tools such as ChatGPT, Gemini, Google AI Studio, Stitch, Figma AI, Grok, Rork, and other emerging technologies.
+Helped students understand how to effectively use AI tools for learning, creativity, and productivity.
+Reinforced and improved students’ foundational knowledge of HTML and CSS through practical exercises and guided lessons.
+Taught intermediate-level UI/UX design concepts using Figma, enabling students to create their own responsive and visually structured designs.
+Focused on improving communication, mentorship, and classroom management skills while understanding student psychology and learning behaviors.
+Encouraged creativity, independent thinking, and problem-solving skills through hands-on activities and mini projects.
+
+Frontend Engineer | Rentix | Full Time                                          		            October 2025 - April 2026
+Developed the frontend of the Rentix project and refactored the codebase into Feature-Sliced Design (FSD) architecture, creating reusable, modular components and a standardized global state for improved scalability and maintainability.
+Engineered a responsive and user-friendly interface using React, Ant Design, Formik, and React Query, ensuring efficient data handling and seamless interactions.
+Implemented secure authentication (Login, Registration, OTP verification), improving access reliability.
+Developed advanced order filtering by date and time, enhancing search efficiency and usability.
+Built role-based access control in the admin panel with dynamic route rendering based on user permissions.
+Designed reusable UI components and custom date-time picker, reducing redundancy and improving user experience.
+Implemented real-time notifications and multiple CRUD modules (regions, cars, managers) for efficient data management.
+Integrated online/offline state detection, improving application reliability and user feedback.
+
+Frontend Engineer | UnitDev | Contract                                                                         April  2024 - October 2025
+foragedialog.uz – Rebuilt and delivered a production-grade multilingual web platform from scratch for the German–Uzbek climate-resilient agriculture program, enabling real-time content management, role-based authentication, and API-driven workflows. Implemented a customized CKEditor for dynamic editorial control, SEO and performance optimization, achieving 91% SEO and 90% Accessibility (Lighthouse). The platform is fully live, actively used, and continuously updated in real time.
+rtholdings.uz – Developed a modern, high-performance corporate website for a multinational company operating across Uzbekistan and Central Asia. Built with Next.js, React, and TypeScript, the platform delivers a responsive, brand-aligned user experience with dynamic, API-driven content, search functionality, and secure login flows. Optimized for performance and SEO, achieving 83% Performance, 82% Accessibility, and 100% SEO (Lighthouse) in production.
+
+Frontend Engineer | OKS Technologies | Internship                                       February  2023 - July 2023
+Built an admin panel with Ant Design, customizing components, ensuring responsive layouts, and streamlining form workflows.
+Developed a responsive news website UI with Tailwind CSS, accelerating development and optimizing the CSS footprint.
+Implemented data fetching with React Query, including caching, retry logic, and custom hooks for category-based filtering, reducing redundant API calls.
+Managed global state and user authorization with Redux Toolkit, enabling persistent login, secure logout, and seamless global data access.
+Integrated Formik with Ant Design to deliver secure, validated, and simplified form handling.
+Projects
+Printer [Full Stack]                                   
+Developed an Android business management application using React Native CLI, TypeScript, and a Feature-Sliced Design (FSD) architecture. The application allows business owners to connect a USB thermal printer to their Android device and print customer receipts.
+Since there was no suitable React Native library for the printer, I implemented a custom integration by developing a Kotlin Native Module and exposing it to JavaScript through the React Native Bridge. This enabled seamless communication between the React Native application and the printer's native Android SDK.
+Implemented Firebase Authentication for secure user authentication and Cloud Firestore to store business data, transactions, and sales records. Managed the application's global state using the Context API and built features for tracking daily, monthly, and overall revenue, helping business owners monitor their financial performance.
+
+Hard Skills
+Tools & Technologies: Firebase and Git/Github.
+Languages: JavaScript, TypeScript
+Styles: MUI, Antd Design, Sass/Scss, Bootstrap/Mdbbootstrap, Materialize, Tailwind Css, Tailwind UI & Styled Component
+Frameworks & Libraries: React, React Native, NextJs, Redux, Redux-Toolkit, Tanstack-Query, Formik & Zustand 
+Activities 
+Solved 50+ problems on Leetcode and 200+ challenges on Codewars.
+Codewars Problems & Abdujalilov Ismoil – Founder & Content Creator
+Created 20+ video tutorials on React.js for the ITech YouTube channel.
+Frontend Instructor at UnitDev, Najot Ta'lim & Alfraganus University.
