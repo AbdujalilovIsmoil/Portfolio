@@ -3,6 +3,7 @@ import type { MutableRefObject } from "react";
 import { buildAnimatedCharacter, type CharacterState } from "./AnimatedCharacter";
 import { buildFootprints } from "./Effects";
 import { group, inRegions, lerp, linear, lit, ring, type Ctx } from "./core";
+import { trackLoad } from "./loadingSignal";
 import { playFootstep } from "./footstepSynth";
 import type { FlightSignal } from "./flightSignal";
 import type { PlayerAccent } from "./playerAccentSignal";
@@ -36,7 +37,7 @@ export function buildCharacter(ctx: Ctx, parent: Node, deps: CharacterDeps) {
   ctx.player.set(SPAWN[0], 0, SPAWN[1]);
 
   const state: CharacterState = { moving: false, running: false, jumping: false, flying: false, superman: false };
-  const modelReady = buildAnimatedCharacter(ctx, g, { input, flightRef, state });
+  const modelReady = trackLoad(buildAnimatedCharacter(ctx, g, { input, flightRef, state }));
 
   const ringMat = lit(ctx, { color: "#7c9bff", emissive: "#7c9bff", ei: 1.6, opacity: 0.6 });
   ring(ctx, 0.4, 0.48, 32, { parent: g, pos: [0, 0.02, 0], rot: [-Math.PI / 2, 0, 0], mat: ringMat });

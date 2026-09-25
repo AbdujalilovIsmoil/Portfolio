@@ -1,6 +1,7 @@
 import "@babylonjs/loaders/glTF";
 import { AssetContainer, Light, PBRMaterial, SceneLoader, TransformNode, type Node, type Scene } from "@babylonjs/core";
 import { place, type Ctx, type PlaceOpts } from "./core";
+import { trackLoad } from "./loadingSignal";
 
 const cache = new WeakMap<Scene, Map<string, Promise<AssetContainer>>>();
 
@@ -23,7 +24,20 @@ export interface ModelOpts extends PlaceOpts {
   clone?: boolean;
 }
 
-export async function instantiate(ctx: Ctx, file: string, parent: Node, o: ModelOpts = {}) {
+let critical = false;
+
+/** Models requested between begin() and end() hold back the start button until they have loaded. */
+export const criticalLoads = {
+  begin: () => void (critical = true),
+  end: () => void (critical = false),
+};
+
+export function instantiate(ctx: Ctx, file: string, parent: Node, o: ModelOpts = {}) {
+  const p = doInstantiate(ctx, file, parent, o);
+  return critical ? trackLoad(p) : p;
+}
+
+async function doInstantiate(ctx: Ctx, file: string, parent: Node, o: ModelOpts) {
   const container = await loadContainer(ctx, file);
   const res = container.instantiateModelsToScene((n) => n, !!o.clone);
   const holder = new TransformNode("model", ctx.scene);

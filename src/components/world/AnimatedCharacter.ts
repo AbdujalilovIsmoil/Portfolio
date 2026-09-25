@@ -4,7 +4,6 @@ import type { MutableRefObject } from "react";
 import { box, canvasTexture, clamp, cone, cylinder, group, lerp, lit, pointLight, setEuler, torus, unlit, type Ctx } from "./core";
 import type { FlightSignal } from "./flightSignal";
 import { PITCH_MAX, PITCH_MIN, type WorldInput } from "./WorldInputContext";
-import { setLoading } from "./loadingSignal";
 
 const MODEL_ROOT = "/models/";
 const MODEL_FILE = "soldier.glb";
@@ -98,10 +97,7 @@ export async function buildAnimatedCharacter(
 
   buildJetpack(ctx, scaled, flightRef);
 
-  setLoading(0, true);
-  const result = await SceneLoader.ImportMeshAsync("", MODEL_ROOT, MODEL_FILE, ctx.scene, (e) => {
-    if (e.lengthComputable && e.total > 0) setLoading(Math.min(99, (e.loaded / e.total) * 100), true);
-  });
+  const result = await SceneLoader.ImportMeshAsync("", MODEL_ROOT, MODEL_FILE, ctx.scene);
   result.animationGroups.forEach((g) => g.stop());
   const root = result.meshes[0];
   root.parent = scaled;
@@ -161,6 +157,5 @@ export async function buildAnimatedCharacter(
     setEuler(tilt, tiltT * BODY_TILT_BOOST, 0, 0);
   });
 
-  setLoading(100, false);
   return tilt;
 }

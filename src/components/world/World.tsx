@@ -39,7 +39,7 @@ import { createDoorSystem } from "./Doors";
 import type { DoorSignal } from "./doorSignal";
 import { LIGHT_SCALE, group, linear, type Anchor, type Ctx, type Region } from "./core";
 import { getIsLowPowerDevice } from "./performanceTier";
-import { setLoading } from "./loadingSignal";
+import { criticalLoads } from "./assets";
 import { useWorldInput } from "./WorldInputContext";
 import FloatingInfoPanel from "./FloatingInfoPanel";
 import type { TeleportSignal } from "./teleportSignal";
@@ -235,6 +235,7 @@ export default function World({ teleportRef, introRef, accentRef, flightRef, psR
 
     // ---- build the world (order = per-frame update order, as before)
     const root = group(ctx);
+    criticalLoads.begin(); // office, lamps, sofa and the character gate the start button
     const room = buildRoom(ctx, root);
     const doors = createDoorSystem(ctx, { input, doorRef });
     buildCorridor(ctx, root, doors);
@@ -254,10 +255,10 @@ export default function World({ teleportRef, introRef, accentRef, flightRef, psR
     const modelReady = buildCharacter(ctx, root, { input, accentRef, flightRef });
     buildCameraRig(ctx, { input, teleportRef, introRef });
     ctx.afterBuild.forEach((fn) => fn());
+    criticalLoads.end();
     setBuilt({ ctx, anchors });
     modelReady.catch((e) => {
       console.error("Character failed to load", e);
-      setLoading(100, false);
     });
 
     // Rooms far from the player are switched off entirely (no draw calls, no shadow casting).
