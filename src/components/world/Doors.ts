@@ -107,7 +107,7 @@ export function createDoorSystem(ctx: Ctx, deps: { input: MutableRefObject<World
           g.fillStyle = "#9bb4ff";
           g.font = "bold 34px sans-serif";
           g.textAlign = "center";
-          g.fillText(label ?? "Tez orada…", 128, 58);
+          g.fillText(label ?? "Coming soon…", 128, 58);
         });
         const r = group(ctx, { parent: base, pos: [W / 2, 0, side * 0.9] });
         box(ctx, W, DOOR_H, 0.05, { parent: r, pos: [0, DOOR_H / 2, side * 0.6], mat: lit(ctx, { color: "#0b0d13", rough: 1 }) });

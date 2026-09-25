@@ -46,8 +46,8 @@ try {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(`http://localhost:${PORT}`);
-  await page.waitForFunction(() => [...document.querySelectorAll("button")].some((b) => /Boshlash/.test(b.textContent)), { timeout: 60000 });
-  await page.evaluate(() => [...document.querySelectorAll("button")].find((b) => /Boshlash/.test(b.textContent)).click());
+  await page.waitForFunction(() => [...document.querySelectorAll("button")].some((b) => /Start/.test(b.textContent)), { timeout: 60000 });
+  await page.evaluate(() => [...document.querySelectorAll("button")].find((b) => /Start/.test(b.textContent)).click());
   // the game exposes nothing globally in production, so measure with requestAnimationFrame
   await page.evaluate(() => {
     window.__dt = [];

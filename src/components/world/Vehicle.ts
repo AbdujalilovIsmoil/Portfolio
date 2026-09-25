@@ -160,10 +160,10 @@ export function buildVehicles(
     }
     if (near) {
       doorRef.current.near = true;
-      doorRef.current.label = "Mashinaga o'tirish";
+      doorRef.current.label = "Get in the car";
     } else if (driving) {
       doorRef.current.near = true;
-      doorRef.current.label = "Mashinadan tushish";
+      doorRef.current.label = "Get out of the car";
       doorRef.current.open = false;
     }
 

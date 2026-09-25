@@ -181,7 +181,7 @@ export function buildTestimonialsRoom(ctx: Ctx, parent: Node) {
     g.font = "bold 50px Georgia, serif";
     g.textAlign = "center";
     g.textBaseline = "middle";
-    g.fillText("T A V S I Y A L A R", 320, 66);
+    g.fillText("T E S T I M O N I A L S", 320, 66);
   });
   const sg = group(ctx, { parent: root, pos: [TEST_X0 + 0.02, 2.75, 29], rot: [0, Math.PI / 2, 0] });
   box(ctx, 2.0, 0.4, 0.05, { parent: sg, mat: gold });
@@ -209,7 +209,7 @@ export function buildTestimonialsRoom(ctx: Ctx, parent: Node) {
     add({
       pos: spots[i].stand,
       radius: 1.5,
-      info: { title: p.name, subtitle: `${p.role} · ${p.project}`, lines: p.full, tags: ["Tavsiya xati"] },
+      info: { title: p.name, subtitle: `${p.role} · ${p.project}`, lines: p.full, tags: ["Recommendation letter"] },
     });
   });
 
@@ -225,9 +225,9 @@ export function buildTestimonialsRoom(ctx: Ctx, parent: Node) {
       instantiateFit(ctx, file, root, { pos: [x, 1.07, z], size, yaw }).catch((e) => console.error(file, e));
     });
   };
-  bust("nefertiti.glb", 7.2, 28.8, 0.75, 1.2, { title: "Nefertiti", subtitle: "Buyuk shaxs · Qadimgi Misr malikasi", lines: ["Misr malikasi Nefertiti (miloddan avvalgi XIV asr) — go'zalligi va davlat ishlaridagi ta'siri bilan mashhur.", "Uning byusti dunyodagi eng tanilgan san'at asarlaridan biri."] });
-  bust("tennyson.glb", 7.2, 33.2, 0.75, 1.0, { title: "Alfred Lord Tennyson", subtitle: "Buyuk shaxs · Shoir", lines: ["Ingliz shoiri (1809–1892), Viktoriya davrining eng mashhur ovozlaridan biri.", "«Qiyinchiliklarga qaramay — izla, top, taslim bo'lma» ruhidagi she'rlari bilan tanilgan."] });
-  bust("leeperry.glb", 11.6, 31.0, 0.7, 1.4, { title: "Portret byusti", subtitle: "Haykal · 3D skaner", lines: ["Haqiqiy insonning yuqori aniqlikdagi 3D-skaneri.", "Zamonaviy texnologiya insonni asrlar davomida saqlash imkonini beradi."] });
+  bust("nefertiti.glb", 7.2, 28.8, 0.75, 1.2, { title: "Nefertiti", subtitle: "Great figure · Queen of ancient Egypt", lines: ["Queen Nefertiti (14th century BC) is famed for her beauty and her influence in affairs of state.", "Her bust is one of the most recognisable works of art in the world."] });
+  bust("tennyson.glb", 7.2, 33.2, 0.75, 1.0, { title: "Alfred Lord Tennyson", subtitle: "Great figure · Poet", lines: ["English poet (1809–1892), one of the most celebrated voices of the Victorian era.", "Known for verse in the spirit of “to strive, to seek, to find, and not to yield.”"] });
+  bust("leeperry.glb", 11.6, 31.0, 0.7, 1.4, { title: "Portrait bust", subtitle: "Statue · 3D scan", lines: ["A high-resolution 3D scan of a real person.", "Modern technology makes it possible to preserve a person for centuries."] });
 
   for (const [lx, lz] of [[7.6, 28.6], [7.6, 33.4], [11.8, 28.6], [11.8, 33.4]]) addPendant(ctx, root, lx, lz, ROOM_H, "#ffe6c8", 14, 11);
 

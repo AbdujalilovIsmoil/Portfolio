@@ -265,7 +265,7 @@ export default function MobileControls() {
           onPointerLeave={jumpRelease}
           onPointerCancel={jumpRelease}
         >
-          Sakrash
+          Jump
         </JumpButton>
       </RightColumn>
     </Wrap>

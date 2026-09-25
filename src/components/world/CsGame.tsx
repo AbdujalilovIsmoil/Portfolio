@@ -42,9 +42,9 @@ const BOT_RUN = 5.2;
 
 type WeaponId = "knife" | "pistol" | "rifle";
 const WEAPONS: Record<WeaponId, { name: string; slot: number; mag: number; delay: number; reload: number; dmg: number; auto: boolean; range: number }> = {
-  knife: { name: "Pichoq", slot: 1, mag: 0, delay: 0.5, reload: 0, dmg: 55, auto: false, range: 2.4 },
-  pistol: { name: "Pistolet", slot: 2, mag: 12, delay: 0.24, reload: 1.3, dmg: 28, auto: false, range: 150 },
-  rifle: { name: "Avtomat", slot: 3, mag: 30, delay: 0.1, reload: 1.9, dmg: 34, auto: true, range: 150 },
+  knife: { name: "Knife", slot: 1, mag: 0, delay: 0.5, reload: 0, dmg: 55, auto: false, range: 2.4 },
+  pistol: { name: "Pistol", slot: 2, mag: 12, delay: 0.24, reload: 1.3, dmg: 28, auto: false, range: 150 },
+  rifle: { name: "Rifle", slot: 3, mag: 30, delay: 0.1, reload: 1.9, dmg: 34, auto: true, range: 150 },
 };
 
 interface Bot {
@@ -1001,38 +1001,38 @@ export default function CsGame({ onExit }: { onExit: () => void }) {
       )}
       <div style={{ ...txt, position: "absolute", left: 24, bottom: 22, fontSize: 30 }}>❤ {Math.max(0, Math.round(hud.hp))}</div>
       <div style={{ ...txt, position: "absolute", right: 24, bottom: 22, fontSize: 30, textAlign: "right" }}>
-        <div style={{ fontSize: 14, opacity: 0.85 }}>{["1  Pichoq", "2  Pistolet", "3  Avtomat"].map((s, i) => (
+        <div style={{ fontSize: 14, opacity: 0.85 }}>{["1  Knife", "2  Pistol", "3  Rifle"].map((s, i) => (
           <span key={s} style={{ marginLeft: 14, padding: "2px 8px", borderRadius: 6, background: ["knife", "pistol", "rifle"][i] === hud.weapon ? "rgba(124,155,255,0.6)" : "transparent" }}>{s}</span>
         ))}</div>
-        {hud.reloading ? "Zaryadlanmoqda…" : hud.mag ? `${hud.ammo} / ${hud.mag}` : "∞"}
+        {hud.reloading ? "Reloading…" : hud.mag ? `${hud.ammo} / ${hud.mag}` : "∞"}
       </div>
       <div style={{ ...txt, position: "absolute", top: 18, left: "50%", transform: "translateX(-50%)", fontSize: 16, textAlign: "center" }}>
-        Raund {hud.wave} • Botlar: {hud.alive} • O&apos;ldirildi: {hud.kills}
+        Round {hud.wave} • Bots: {hud.alive} • Kills: {hud.kills}
       </div>
-      <div style={{ ...txt, position: "absolute", top: 18, right: 24, fontSize: 12, opacity: 0.8 }}>V — uchinchi shaxs</div>
+      <div style={{ ...txt, position: "absolute", top: 18, right: 24, fontSize: 12, opacity: 0.8 }}>V — third person</div>
       {!hud.ready && (
-        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.75)", ...txt, fontSize: 22 }}>Modellar yuklanmoqda…</div>
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.75)", ...txt, fontSize: 22 }}>Loading models…</div>
       )}
       {hud.dead && (
         <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, background: "rgba(80,0,0,0.55)", ...txt }}>
-          <div style={{ fontSize: 40, fontWeight: 900 }}>Siz o&apos;ldingiz</div>
-          <div>Natija: {hud.kills} ta bot • Raund {hud.wave}</div>
+          <div style={{ fontSize: 40, fontWeight: 900 }}>You died</div>
+          <div>Score: {hud.kills} bots • Round {hud.wave}</div>
           <div style={{ display: "flex", gap: 12 }}>
-            <button style={btn} onClick={() => { api.current?.restart(); api.current?.lock(); }}>Qaytadan (Enter)</button>
-            <button style={btn} onClick={onExit}>PlayStation&apos;dan chiqish</button>
+            <button style={btn} onClick={() => { api.current?.restart(); api.current?.lock(); }}>Play again (Enter)</button>
+            <button style={btn} onClick={onExit}>Leave PlayStation</button>
           </div>
         </div>
       )}
       {hud.ready && !hud.locked && !hud.dead && (
         <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, background: "rgba(0,0,0,0.6)", ...txt }}>
-          <div style={{ fontSize: 34, fontWeight: 900 }}>Counter-Strike: Botlar</div>
+          <div style={{ fontSize: 34, fontWeight: 900 }}>Counter-Strike: Bots</div>
           <div style={{ opacity: 0.85, textAlign: "center", lineHeight: 1.7, fontWeight: 600 }}>
-            WASD — yurish • Sichqoncha — qarash • Chap tugma — otish • R — zaryadlash<br />
-            1 — pichoq • 2 — pistolet • 3 — avtomat • V — o&apos;zingizni ko&apos;rish • Shift — sekin yurish
+            WASD — move • Shift — run • Space — jump • Mouse — look • Left click — shoot • R — reload<br />
+            1 — knife • 2 — pistol • 3 — rifle • V — see yourself (third person)
           </div>
           <div style={{ display: "flex", gap: 12 }}>
-            <button style={btn} onClick={() => api.current?.lock()}>O&apos;yinni davom ettirish</button>
-            <button style={btn} onClick={onExit}>PlayStation&apos;dan chiqish</button>
+            <button style={btn} onClick={() => api.current?.lock()}>Resume game</button>
+            <button style={btn} onClick={onExit}>Leave PlayStation</button>
           </div>
         </div>
       )}

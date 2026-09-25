@@ -68,7 +68,7 @@ export function buildMuseum(ctx: Ctx, parent: Node) {
     g.font = "bold 76px Georgia, serif";
     g.textAlign = "center";
     g.textBaseline = "middle";
-    g.fillText("M U Z E Y", 256, 68);
+    g.fillText("M U S E U M", 256, 68);
   });
   const sg = group(ctx, { parent: root, pos: [MUSEUM_X0 + 0.02, 2.75, CZ], rot: [0, Math.PI / 2, 0] });
   box(ctx, 1.5, 0.4, 0.05, { parent: sg, mat: gold });
@@ -93,36 +93,36 @@ export function buildMuseum(ctx: Ctx, parent: Node) {
   const EX = MUSEUM_X1 - 0.09;
   frame([EX, 1.85, 8.4], -Math.PI / 2, 2.1, 1.15, img("rt-holdings.jpg"), {
     title: "RT Holdings",
-    subtitle: "Ish · Korporativ sayt",
-    lines: ["Qurilish, sanoat va logistika sohasidagi kompaniya uchun korporativ veb-sayt.", "Next.js / React / TypeScript asosida qurilgan. Lighthouse: 83 / 82 / 100."],
+    subtitle: "Work · Corporate website",
+    lines: ["A corporate website for a company in construction, industry and logistics.", "Built with Next.js / React / TypeScript. Lighthouse: 83 / 82 / 100."],
     tags: ["Next.js", "React", "TypeScript"],
     link: "rtholdings.uz",
   }, [EX - 1.6, 8.4]);
   frame([EX, 1.85, 11], -Math.PI / 2, 2.1, 1.15, img("shams-oquv-markaz.png"), {
-    title: "Shams O'quv Markazi",
-    subtitle: "Ish · Ta'lim platformasi",
-    lines: ["Arab tili o'quv markazi uchun ko'p tilli sayt (uz / ru / en / ar-RTL). 1700+ bitiruvchi, 12 000+ jamoa.", "Maxsus CMS va CKEditor5 plagini ishlab chiqilgan."],
+    title: "Shams Learning Center",
+    subtitle: "Work · Education platform",
+    lines: ["A multilingual website (uz / ru / en / ar-RTL) for an Arabic language learning centre. 1,700+ graduates, 12,000+ community members.", "A custom CMS and a CKEditor 5 plugin were developed."],
     tags: ["Next.js", "i18n", "CMS", "CKEditor5"],
     link: "shamsoquvmarkaz.uz",
   }, [EX - 1.6, 11]);
   frame([EX, 1.85, 13.6], -Math.PI / 2, 2.1, 1.15, img("foragedialog.png"), {
     title: "Foragedialog",
-    subtitle: "Ish · Qishloq xo'jaligi platformasi",
-    lines: ["Germaniya–O'zbekiston iqlimga chidamli qishloq xo'jaligi platformasi.", "SEO 91%, Accessibility 90%."],
+    subtitle: "Work · Agriculture platform",
+    lines: ["A German–Uzbek climate-resilient agriculture platform.", "SEO 91%, Accessibility 90%."],
     tags: ["React", "SEO", "A11y"],
     link: "foragedialog.uz",
   }, [EX - 1.6, 13.6]);
   frame([8.4, 1.85, MUSEUM_Z0 + 0.09], 0, 1.35, 1.35, img("shams-asistant-bot.jpg"), {
     title: "Shams Assistant — AI bot",
-    subtitle: "Ish · Telegram bot",
-    lines: ["Telegram uchun sun'iy intellektli yordamchi bot. Node.js, PM2 bilan VPS'da ishlaydi.", "Gemini'dan ChatGPT API'ga ko'chirilgan."],
+    subtitle: "Work · Telegram bot",
+    lines: ["An AI-powered assistant bot for Telegram. Runs on a VPS with Node.js and PM2.", "Migrated from the Gemini API to the ChatGPT API."],
     tags: ["Node.js", "PM2", "ChatGPT API"],
     link: "t.me/Shams_asisstant_bot",
   }, [8.4, MUSEUM_Z0 + 1.7]);
   frame([12, 1.85, MUSEUM_Z0 + 0.09], 0, 1.9, 1.15, textCard(ctx, "Printer", "React Native + Kotlin", "#1f5a8a"), {
     title: "Printer [Full Stack]",
-    subtitle: "Loyiha · Mobil ilova",
-    lines: ["Android uchun termal printer ilovasi: React Native CLI va Kotlin native modul.", "Firebase autentifikatsiya va Firestore."],
+    subtitle: "Project · Mobile app",
+    lines: ["An Android thermal-printer app: React Native CLI with a Kotlin native module.", "Firebase authentication and Firestore."],
     tags: ["React Native", "Kotlin", "Firebase"],
   }, [12, MUSEUM_Z0 + 1.7]);
 
@@ -135,14 +135,14 @@ export function buildMuseum(ctx: Ctx, parent: Node) {
   };
   interface Piece { file: string; x: number; z: number; ph: number; size: number; yaw: number; info: ExhibitInfo; round?: boolean }
   const pieces: Piece[] = [
-    { file: "nefertiti.glb", x: 7.4, z: 8.6, ph: 0.95, size: 0.7, yaw: 0.5, info: { title: "Nefertiti byusti", subtitle: "Haykal · Qadimgi Misr", lines: ["Malika Nefertitining mashhur bo'yalgan ohaktosh byusti (miloddan avvalgi ~1345-yil).", "Bugun Berlindagi Neues Museumda saqlanadi."] } },
-    { file: "tennyson.glb", x: 7.4, z: 13.4, ph: 0.95, size: 0.7, yaw: 0.6, info: { title: "Tennison byusti", subtitle: "Haykal · Adabiyot", lines: ["Ingliz shoiri Alfred Lord Tennisonning byusti.", "Viktoriya davri she'riyatining eng mashhur namoyandalaridan biri."] } },
-    { file: "leeperry.glb", x: 10.3, z: 8.6, ph: 0.95, size: 0.62, yaw: -0.5, info: { title: "Bosh portreti", subtitle: "Haykal · 3D skanerlash", lines: ["Lee Perry-Smith'ning yuqori sifatli 3D-skaner qilingan boshi.", "Real vaqt grafikasi va veb-3D uchun mashhur test modeli."] } },
-    { file: "mask.glb", x: 10.3, z: 13.4, ph: 0.95, size: 0.55, yaw: 0.2, info: { title: "Venetsiya niqobi", subtitle: "Suvenir · Italiya", lines: ["Venetsiya karnavalining an'anaviy niqobi.", "Asrlar davomida sirlilik va bayram ramzi."] } },
-    { file: "rolex.glb", x: 12.6, z: 9.6, ph: 0.6, size: 0.3, yaw: 0.4, info: { title: "Qo'l soati", subtitle: "Suvenir · Soatsozlik", lines: ["Mexanik qo'l soatining batafsil 3D modeli.", "Detallarga e'tibor — dasturchi uchun ham muhim fazilat."] } },
-    { file: "duck.glb", x: 12.6, z: 12.4, ph: 0.6, size: 0.3, yaw: -0.6, info: { title: "Sariq o'rdak", subtitle: "Suvenir · glTF ramzi", lines: ["Khronos glTF formatining norasmiy maskoti.", "3D veb-dunyoda birinchi test modellaridan biri."] } },
-    { file: "parrot.glb", x: 14.2, z: 8.2, ph: 0.6, size: 0.42, yaw: -1.2, info: { title: "To'tiqush", subtitle: "Suvenir · Hayvonot", lines: ["Past poligonli animatsiyali to'tiqush modeli."] } },
-    { file: "flamingo.glb", x: 14.2, z: 14.6, ph: 0.6, size: 0.55, yaw: -1.9, info: { title: "Flamingo", subtitle: "Suvenir · Hayvonot", lines: ["Pushti qanotli flamingo — past poligonli 3D model."] } },
+    { file: "nefertiti.glb", x: 7.4, z: 8.6, ph: 0.95, size: 0.7, yaw: 0.5, info: { title: "Bust of Nefertiti", subtitle: "Statue · Ancient Egypt", lines: ["The famous painted limestone bust of Queen Nefertiti (c. 1345 BC).", "Today it is kept in the Neues Museum in Berlin."] } },
+    { file: "tennyson.glb", x: 7.4, z: 13.4, ph: 0.95, size: 0.7, yaw: 0.6, info: { title: "Bust of Tennyson", subtitle: "Statue · Literature", lines: ["A bust of the English poet Alfred, Lord Tennyson.", "One of the best-known voices of Victorian poetry."] } },
+    { file: "leeperry.glb", x: 10.3, z: 8.6, ph: 0.95, size: 0.62, yaw: -0.5, info: { title: "Head portrait", subtitle: "Statue · 3D scan", lines: ["A high-quality 3D scan of Lee Perry-Smith's head.", "A well-known test model for real-time graphics and web 3D."] } },
+    { file: "mask.glb", x: 10.3, z: 13.4, ph: 0.95, size: 0.55, yaw: 0.2, info: { title: "Venetian mask", subtitle: "Souvenir · Italy", lines: ["A traditional mask of the Venice carnival.", "For centuries a symbol of mystery and celebration."] } },
+    { file: "rolex.glb", x: 12.6, z: 9.6, ph: 0.6, size: 0.3, yaw: 0.4, info: { title: "Wristwatch", subtitle: "Souvenir · Watchmaking", lines: ["A detailed 3D model of a mechanical wristwatch.", "Attention to detail — an important quality for a developer, too."] } },
+    { file: "duck.glb", x: 12.6, z: 12.4, ph: 0.6, size: 0.3, yaw: -0.6, info: { title: "Yellow duck", subtitle: "Souvenir · glTF icon", lines: ["The unofficial mascot of the Khronos glTF format.", "One of the first test models of the 3D web."] } },
+    { file: "parrot.glb", x: 14.2, z: 8.2, ph: 0.6, size: 0.42, yaw: -1.2, info: { title: "Parrot", subtitle: "Souvenir · Wildlife", lines: ["A low-poly animated parrot model."] } },
+    { file: "flamingo.glb", x: 14.2, z: 14.6, ph: 0.6, size: 0.55, yaw: -1.9, info: { title: "Flamingo", subtitle: "Souvenir · Wildlife", lines: ["A pink-winged flamingo — a low-poly 3D model."] } },
   ];
   const lazy: (() => void)[] = [];
   pieces.forEach((p) => {
@@ -155,13 +155,13 @@ export function buildMuseum(ctx: Ctx, parent: Node) {
   // sports-car sculpture on a low round podium + horse statue
   cylinder(ctx, 1.4, 1.5, 0.22, 36, { parent: root, pos: [8.9, 0.11, 11], cast: true, mat: white });
   colliders.push({ x: 8.9, z: 11, hx: 1.4, hz: 1.4 });
-  exhibits.push({ pos: [8.9, 11 + 2.2], radius: 2.2, info: { title: "Sport avtomobil", subtitle: "Suvenir · Dizayn", lines: ["Klassik italyan sport avtomobilining 3D modeli.", "Tezlik va nafis shakl uyg'unligi."] } });
+  exhibits.push({ pos: [8.9, 11 + 2.2], radius: 2.2, info: { title: "Sports car", subtitle: "Souvenir · Design", lines: ["A 3D model of a classic Italian sports car.", "Speed and elegant form in harmony."] } });
   lazy.push(() => {
     instantiateFit(ctx, "ferrari.glb", root, { pos: [8.9, 0.22, 11], size: 2.3, yaw: 0.6 }).catch((e) => console.error("ferrari", e));
   });
   cylinder(ctx, 0.75, 0.85, 0.25, 28, { parent: root, pos: [13.3, 0.125, 11.5], mat: white });
   colliders.push({ x: 13.3, z: 11.5, hx: 0.85, hz: 0.85 });
-  exhibits.push({ pos: [12, 11.5], radius: 2.0, info: { title: "Ot haykali", subtitle: "Haykal · Hayvonot", lines: ["Ot — tezlik, kuch va erkinlik ramzi.", "Past poligonli 3D model."] } });
+  exhibits.push({ pos: [12, 11.5], radius: 2.0, info: { title: "Horse statue", subtitle: "Statue · Wildlife", lines: ["The horse — a symbol of speed, strength and freedom.", "A low-poly 3D model."] } });
   lazy.push(() => {
     instantiateFit(ctx, "horse.glb", root, { pos: [13.3, 0.25, 11.5], size: 1.5, yaw: -1.3 }).catch((e) => console.error("horse", e));
   });

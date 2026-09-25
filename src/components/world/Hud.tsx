@@ -57,7 +57,7 @@ export default function Hud() {
       <Bar>
         <Logo>◆</Logo>
       </Bar>
-      <Hint>WASD — yurish • Shift — yugurish • Space — sakrash • sichqoncha — qarash</Hint>
+      <Hint>WASD — walk • Shift — run • Space — jump • mouse — look</Hint>
     </>
   );
 }

@@ -56,7 +56,7 @@ export default function DoorHint({ signalRef }: { signalRef: React.MutableRefObj
   return (
     <Bubble $on={state.near}>
       <Key>E</Key>
-      {state.label ?? (state.open ? "Eshikni yopish" : "Eshikni ochish")}
+      {state.label ?? (state.open ? "Close the door" : "Open the door")}
     </Bubble>
   );
 }

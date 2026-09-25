@@ -90,10 +90,9 @@ export default function Welcome({ onStart }: { onStart: () => void }) {
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
       >
         <Emoji>🕹️</Emoji>
-        <Heading>Ushbu interaktiv olamga xush kelibsiz</Heading>
+        <Heading>Welcome to this interactive world</Heading>
         <Body>
-          WASD yoki strelka tugmalari yordamida ofis xonasida yuring va portfolio bilan
-          tanishing.
+          Use WASD or the arrow keys to walk around the office and explore the portfolio.
         </Body>
         {!ready && (
           <ProgressTrack>
@@ -101,7 +100,7 @@ export default function Welcome({ onStart }: { onStart: () => void }) {
           </ProgressTrack>
         )}
         <StartButton onClick={onStart} disabled={!ready} $disabled={!ready}>
-          {ready ? "Boshlash" : `Yuklanmoqda... ${Math.round(progress)}%`}
+          {ready ? "Start" : `Loading... ${Math.round(progress)}%`}
         </StartButton>
       </Card>
     </Backdrop>

@@ -25,26 +25,26 @@ const ACHS: Ach[] = [
   {
     title: "LeetCode",
     big: "50+",
-    sub: "masala yechilgan",
+    sub: "problems solved",
     color: "#a06a10",
     icon: "🧩",
-    info: { title: "LeetCode", subtitle: "Yutuq · Algoritmlar", lines: ["LeetCode platformasida 50 dan ortiq masala yechganman.", "Algoritmik fikrlash va ma'lumotlar tuzilmalari bo'yicha muntazam mashq."], tags: ["Algorithms", "Problem solving"] },
+    info: { title: "LeetCode", subtitle: "Achievement · Algorithms", lines: ["I have solved more than 50 problems on LeetCode.", "Regular practice in algorithmic thinking and data structures."], tags: ["Algorithms", "Problem solving"] },
   },
   {
     title: "Codewars",
     big: "200+",
-    sub: "challenge bajarilgan",
+    sub: "challenges completed",
     color: "#8a1f2a",
     icon: "⚔️",
-    info: { title: "Codewars", subtitle: "Yutuq · Kata mashqlari", lines: ["Codewars'da 200 dan ortiq challenge (kata) yechilgan.", "Codewars Problems & Abdujalilov Ismoil — Founder & Content Creator."], tags: ["Katas", "JavaScript"] },
+    info: { title: "Codewars", subtitle: "Achievement · Kata practice", lines: ["More than 200 challenges (katas) solved on Codewars.", "Codewars Problems & Abdujalilov Ismoil — Founder & Content Creator."], tags: ["Katas", "JavaScript"] },
   },
   {
     title: "ITech YouTube",
     big: "20+",
-    sub: "React.js video darslik",
+    sub: "React.js video tutorials",
     color: "#a01818",
     icon: "🎬",
-    info: { title: "ITech YouTube kanali", subtitle: "Yutuq · Kontent yaratish", lines: ["ITech YouTube kanali uchun React.js bo'yicha 20 dan ortiq video darslik tayyorlaganman.", "Bilimni boshqalar bilan ulashish — o'zim uchun ham eng yaxshi o'rganish usuli."], tags: ["React.js", "Video", "Content"] },
+    info: { title: "ITech YouTube channel", subtitle: "Achievement · Content creation", lines: ["I created more than 20 video tutorials on React.js for the ITech YouTube channel.", "Sharing knowledge with others is also the best way for me to learn."], tags: ["React.js", "Video", "Content"] },
   },
   {
     title: "Frontend Instructor",
@@ -52,7 +52,7 @@ const ACHS: Ach[] = [
     sub: "UnitDev · Najot Ta'lim · Alfraganus University",
     color: "#1f5a8a",
     icon: "🎓",
-    info: { title: "Frontend Instructor", subtitle: "Yutuq · O'qituvchilik", lines: ["UnitDev, Najot Ta'lim va Alfraganus University'da frontend bo'yicha o'qituvchi (instructor) sifatida dars berganman.", "Talabalarga real loyihalar orqali frontend yo'nalishini o'rgatish."], tags: ["Teaching", "Mentoring", "Frontend"] },
+    info: { title: "Frontend Instructor", subtitle: "Achievement · Teaching", lines: ["I have taught frontend as an instructor at UnitDev, Najot Ta'lim and Alfraganus University.", "Teaching students frontend through real projects."], tags: ["Teaching", "Mentoring", "Frontend"] },
   },
 ];
 
@@ -124,7 +124,7 @@ export function buildAchievementsRoom(ctx: Ctx, parent: Node) {
     g.font = "bold 54px Georgia, serif";
     g.textAlign = "center";
     g.textBaseline = "middle";
-    g.fillText("Y U T U Q L A R", 320, 66);
+    g.fillText("A C H I E V E M E N T S", 320, 66);
   });
   const sg = group(ctx, { parent: root, pos: [ACH_X1 - 0.02, 2.75, 29], rot: [0, -Math.PI / 2, 0] });
   box(ctx, 2.0, 0.4, 0.05, { parent: sg, mat: gold });
@@ -183,10 +183,10 @@ export function buildAchievementsRoom(ctx: Ctx, parent: Node) {
       instantiateFit(ctx, file, root, { pos: [x, ph + 0.07, z], size, yaw }).catch((e) => console.error(file, e));
     });
   };
-  piece("gears.glb", -6.4, 28.4, 0.9, 0.7, 0.5, { title: "Shesternyalar", subtitle: "Ramz · Algoritmlar", lines: ["Har bir masala — bir mexanizm: kichik qismlar to'g'ri ulanganda ishlaydi.", "LeetCode va Codewars mashqlari shu fikrlashni charxlaydi."] });
-  piece("robot.glb", -6.4, 33.6, 0.9, 1.0, 0.4, { title: "Robot", subtitle: "Ramz · Kod jangchisi", lines: ["Codewars'da kata'larni yechish — kodlash mahoratini ulg'aytiruvchi mashq.", "200+ challenge bajarilgan."] });
-  piece("steampunk.glb", -3.4, 26.9, 0.9, 0.7, 0.2, { title: "Kamera", subtitle: "Ramz · Video darsliklar", lines: ["ITech YouTube kanali uchun React.js bo'yicha 20+ video darslik yozib olingan."] });
-  piece("leeperry.glb", -3.4, 35.1, 0.9, 0.62, 3.0, { title: "O'qituvchi byusti", subtitle: "Ramz · Ustoz-shogird", lines: ["UnitDev, Najot Ta'lim va Alfraganus University'da frontend o'qituvchisi (instructor) bo'lish tajribasi."] });
+  piece("gears.glb", -6.4, 28.4, 0.9, 0.7, 0.5, { title: "Gears", subtitle: "Symbol · Algorithms", lines: ["Every problem is a mechanism: it works when the small parts fit together.", "LeetCode and Codewars practice sharpens this way of thinking."] });
+  piece("robot.glb", -6.4, 33.6, 0.9, 1.0, 0.4, { title: "Robot", subtitle: "Symbol · Code warrior", lines: ["Solving katas on Codewars is exercise that builds coding skill.", "200+ challenges completed."] });
+  piece("steampunk.glb", -3.4, 26.9, 0.9, 0.7, 0.2, { title: "Camera", subtitle: "Symbol · Video tutorials", lines: ["20+ React.js video tutorials recorded for the ITech YouTube channel."] });
+  piece("leeperry.glb", -3.4, 35.1, 0.9, 0.62, 3.0, { title: "Teacher's bust", subtitle: "Symbol · Mentor and student", lines: ["Experience as a frontend instructor at UnitDev, Najot Ta'lim and Alfraganus University."] });
 
   for (const [lx, lz] of [[-7.2, 28.6], [-7.2, 33.4], [-3.6, 31], [-0.6, 31]]) addPendant(ctx, root, lx, lz, ROOM_H, "#ffe2b0", 15, 11);
 

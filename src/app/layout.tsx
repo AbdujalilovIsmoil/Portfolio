@@ -39,7 +39,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
-      lang="uz"
+      lang="en"
       suppressHydrationWarning
       className={`${roboto.variable} ${poppins.variable} ${raleway.variable}`}
     >

@@ -38,7 +38,7 @@ function tvTexture(ctx: Ctx) {
     g.textAlign = "center";
     g.fillText("PlayStation", 256, 150);
     g.font = "26px sans-serif";
-    g.fillText("F — o'ynash", 256, 210);
+    g.fillText("F — play", 256, 210);
   });
 }
 

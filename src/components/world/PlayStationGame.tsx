@@ -52,7 +52,7 @@ export default function PlayStationGame({ signalRef }: { signalRef: React.Mutabl
 
   return (
     <>
-      <Hint $on={near}>F — PlayStation o&apos;ynash</Hint>
+      <Hint $on={near}>F — play PlayStation</Hint>
       {playing && (
         <div style={{ position: "fixed", inset: 0, zIndex: 400 }}>
           <CsGame onExit={stableExit} />

@@ -40,23 +40,23 @@ const atom: Draw = (g, s) => {
 };
 
 const TECHS: Tech[] = [
-  { name: "React", group: "Kutubxona", bg: "#20232a", fg: "#61dafb", draw: atom, lines: ["Komponentlarga asoslangan UI kutubxonasi (Meta).", "Men ishlaydigan asosiy texnologiyam: Rentix, RT Holdings, Foragedialog va boshqa loyihalarda ishlatganman."], tags: ["Hooks", "Components", "SPA"] },
-  { name: "Next.js", group: "Freymvork", bg: "#000000", fg: "#ffffff", glyph: "N", lines: ["React uchun full-stack freymvork: SSR, SSG, marshrutlash, SEO.", "Shams Learning Center va RT Holdings saytlari shu asosda qurilgan."], tags: ["SSR", "SEO", "App Router"] },
-  { name: "TypeScript", group: "Til", bg: "#3178c6", fg: "#ffffff", glyph: "TS", lines: ["JavaScript'ga statik tiplar qo'shuvchi til.", "Katta loyihalarda xatolarni oldindan topish va kodni tushunarli qilish uchun."], tags: ["Types", "Safety"] },
-  { name: "JavaScript", group: "Til", bg: "#f7df1e", fg: "#111111", glyph: "JS", lines: ["Veb-dasturlashning asosiy tili.", "2021-yildan beri frontend bo'yicha kundalik ish quroli."], tags: ["ES6+", "DOM"] },
-  { name: "Redux Toolkit", group: "State", bg: "#764abc", fg: "#ffffff", glyph: "RTK", lines: ["Redux'ning rasmiy, soddalashtirilgan to'plami.", "OKS Technologies'da global holat va persistent login uchun ishlatganman."], tags: ["Redux", "State"] },
-  { name: "TanStack Query", group: "Ma'lumot olish", bg: "#ff4154", fg: "#ffffff", glyph: "TQ", lines: ["Server ma'lumotlarini keshlash, qayta urinish va sinxronlash kutubxonasi (React Query).", "Ortiqcha API so'rovlarini kamaytirish uchun har loyihada."], tags: ["Cache", "Retry"] },
-  { name: "Formik", group: "Formalar", bg: "#2563a8", fg: "#ffffff", glyph: "Fk", lines: ["React'da formalar va validatsiyani boshqarish kutubxonasi.", "Ant Design bilan birga Rentix va OKS loyihalarida ishlatilgan."], tags: ["Forms", "Validation"] },
-  { name: "Zustand", group: "State", bg: "#4a3b2a", fg: "#f4c26b", glyph: "Zu", lines: ["Yengil va sodda global holat kutubxonasi.", "Kichik va o'rta loyihalarda Redux'ga qulay muqobil."], tags: ["State", "Hooks"] },
-  { name: "MUI", group: "UI kutubxona", bg: "#0b1a2b", fg: "#3f9cf3", glyph: "MUI", lines: ["Material Design asosidagi React komponentlari to'plami.", "Tez va izchil interfeys yaratish uchun."], tags: ["Material", "Components"] },
-  { name: "Ant Design", group: "UI kutubxona", bg: "#ffffff", fg: "#1677ff", glyph: "Ant", lines: ["Korxona darajasidagi React UI kutubxonasi.", "Admin panellarda (Rentix, OKS) asosiy tanlovim."], tags: ["Admin", "Tables"] },
-  { name: "Tailwind CSS", group: "Stil", bg: "#0f172a", fg: "#38bdf8", glyph: "TW", lines: ["Utility-first CSS freymvork: tez va izchil stillash.", "Tailwind UI komponentlari bilan ham ishlaganman."], tags: ["Utility", "Tailwind UI"] },
-  { name: "Sass / SCSS", group: "Stil", bg: "#cc6699", fg: "#ffffff", glyph: "Sass", lines: ["CSS preprosessori: o'zgaruvchilar, ichma-ich qoidalar, mixin'lar.", "Katta stil kodini tartibli saqlash uchun."], tags: ["SCSS", "Mixins"] },
-  { name: "Bootstrap", group: "Stil", bg: "#7952b3", fg: "#ffffff", glyph: "B", lines: ["Eng mashhur CSS freymvorklaridan biri.", "MDBootstrap va Materialize bilan ham tajribam bor."], tags: ["Grid", "MDB", "Materialize"] },
-  { name: "Styled Components", group: "Stil", bg: "#1f1a24", fg: "#db7093", glyph: "SC", lines: ["CSS-in-JS: stillarni komponent ichida yozish.", "Ushbu 3D portfolio ham shu bilan stillangan."], tags: ["CSS-in-JS"] },
-  { name: "React Native", group: "Mobil", bg: "#20232a", fg: "#61dafb", draw: atom, glyph: "", lines: ["React bilan iOS/Android ilovalari yaratish.", "Printer [Full Stack] — React Native CLI + Kotlin native modul, termal printer ilovasi."], tags: ["Android", "Kotlin"] },
-  { name: "Firebase", group: "Backend xizmati", bg: "#1a1a1a", fg: "#ffca28", glyph: "FB", lines: ["Google'ning backend xizmatlari: autentifikatsiya, Firestore, hosting.", "Printer ilovasida auth va ma'lumotlar bazasi uchun."], tags: ["Auth", "Firestore"] },
-  { name: "Git / GitHub", group: "Asbob", bg: "#f05032", fg: "#ffffff", glyph: "Git", lines: ["Versiyalarni boshqarish tizimi va jamoaviy ishlash platformasi.", "Har kungi ish jarayonining asosi: branch, PR, code review."], tags: ["Version control", "PR"] },
+  { name: "React", group: "Library", bg: "#20232a", fg: "#61dafb", draw: atom, lines: ["A component-based UI library (Meta).", "My main technology: used in Rentix, RT Holdings, Foragedialog and other projects."], tags: ["Hooks", "Components", "SPA"] },
+  { name: "Next.js", group: "Framework", bg: "#000000", fg: "#ffffff", glyph: "N", lines: ["A full-stack framework for React: SSR, SSG, routing, SEO.", "The Shams Learning Center and RT Holdings websites are built with it."], tags: ["SSR", "SEO", "App Router"] },
+  { name: "TypeScript", group: "Language", bg: "#3178c6", fg: "#ffffff", glyph: "TS", lines: ["A language that adds static types to JavaScript.", "Catches mistakes early and keeps large codebases readable."], tags: ["Types", "Safety"] },
+  { name: "JavaScript", group: "Language", bg: "#f7df1e", fg: "#111111", glyph: "JS", lines: ["The core language of web development.", "My everyday frontend tool since 2021."], tags: ["ES6+", "DOM"] },
+  { name: "Redux Toolkit", group: "State", bg: "#764abc", fg: "#ffffff", glyph: "RTK", lines: ["The official, simplified toolset for Redux.", "Used at OKS Technologies for global state and persistent login."], tags: ["Redux", "State"] },
+  { name: "TanStack Query", group: "Data fetching", bg: "#ff4154", fg: "#ffffff", glyph: "TQ", lines: ["A library for caching, retrying and synchronising server data (React Query).", "Used in every project to cut down redundant API requests."], tags: ["Cache", "Retry"] },
+  { name: "Formik", group: "Forms", bg: "#2563a8", fg: "#ffffff", glyph: "Fk", lines: ["A library for handling forms and validation in React.", "Used together with Ant Design in the Rentix and OKS projects."], tags: ["Forms", "Validation"] },
+  { name: "Zustand", group: "State", bg: "#4a3b2a", fg: "#f4c26b", glyph: "Zu", lines: ["A light and simple global-state library.", "A handy alternative to Redux in small and medium projects."], tags: ["State", "Hooks"] },
+  { name: "MUI", group: "UI library", bg: "#0b1a2b", fg: "#3f9cf3", glyph: "MUI", lines: ["A set of React components based on Material Design.", "For building fast, consistent interfaces."], tags: ["Material", "Components"] },
+  { name: "Ant Design", group: "UI library", bg: "#ffffff", fg: "#1677ff", glyph: "Ant", lines: ["An enterprise-grade React UI library.", "My first choice for admin panels (Rentix, OKS)."], tags: ["Admin", "Tables"] },
+  { name: "Tailwind CSS", group: "Styling", bg: "#0f172a", fg: "#38bdf8", glyph: "TW", lines: ["A utility-first CSS framework for fast, consistent styling.", "I have also worked with Tailwind UI components."], tags: ["Utility", "Tailwind UI"] },
+  { name: "Sass / SCSS", group: "Styling", bg: "#cc6699", fg: "#ffffff", glyph: "Sass", lines: ["A CSS preprocessor: variables, nesting, mixins.", "Keeps large stylesheets organised."], tags: ["SCSS", "Mixins"] },
+  { name: "Bootstrap", group: "Styling", bg: "#7952b3", fg: "#ffffff", glyph: "B", lines: ["One of the most popular CSS frameworks.", "I also have experience with MDBootstrap and Materialize."], tags: ["Grid", "MDB", "Materialize"] },
+  { name: "Styled Components", group: "Styling", bg: "#1f1a24", fg: "#db7093", glyph: "SC", lines: ["CSS-in-JS: write styles inside the component.", "This 3D portfolio is styled with it too."], tags: ["CSS-in-JS"] },
+  { name: "React Native", group: "Mobile", bg: "#20232a", fg: "#61dafb", draw: atom, glyph: "", lines: ["Building iOS/Android apps with React.", "Printer [Full Stack] — React Native CLI + a Kotlin native module, a thermal-printer app."], tags: ["Android", "Kotlin"] },
+  { name: "Firebase", group: "Backend service", bg: "#1a1a1a", fg: "#ffca28", glyph: "FB", lines: ["Google's backend services: authentication, Firestore, hosting.", "Used for auth and the database in the Printer app."], tags: ["Auth", "Firestore"] },
+  { name: "Git / GitHub", group: "Tool", bg: "#f05032", fg: "#ffffff", glyph: "Git", lines: ["A version-control system and a team collaboration platform.", "The basis of daily work: branches, pull requests, code review."], tags: ["Version control", "PR"] },
 ];
 
 function logoTex(ctx: Ctx, t: Tech) {
@@ -141,7 +141,7 @@ export function buildTechRoom(ctx: Ctx, parent: Node) {
     g.font = "bold 54px monospace";
     g.textAlign = "center";
     g.textBaseline = "middle";
-    g.fillText("< TEXNOLOGIYALAR />", 320, 66);
+    g.fillText("< TECHNOLOGIES />", 320, 66);
   });
   const sg = group(ctx, { parent: root, pos: [TECH_X0 + 0.02, 2.75, 20], rot: [0, Math.PI / 2, 0] });
   box(ctx, 2.0, 0.4, 0.05, { parent: sg, mat: dark });
@@ -166,7 +166,7 @@ export function buildTechRoom(ctx: Ctx, parent: Node) {
       cylinder(ctx, 0.3, 0.3, 0.012, 24, { parent: root, pos: [x, 1.015, z], mat: lit(ctx, { color: "#39d0ff", emissive: "#39d0ff", ei: 1.4 }) });
       cubes.push({ node: cube, y0: 1.42, x, z, ph: k * 0.9 });
       colliders.push({ x, z, hx: 0.42, hz: 0.42 });
-      add({ pos: [x, z + 1.0], radius: 1.15, info: { title: t.name, subtitle: `Texnologiya · ${t.group}`, lines: t.lines, tags: t.tags } });
+      add({ pos: [x, z + 1.0], radius: 1.15, info: { title: t.name, subtitle: `Technology · ${t.group}`, lines: t.lines, tags: t.tags } });
     }
   }
   ctx.onFrame((_, now) => {
@@ -187,9 +187,9 @@ export function buildTechRoom(ctx: Ctx, parent: Node) {
       instantiateFit(ctx, file, root, { pos: [x, 0.5, z], size, yaw }).catch((e) => console.error(file, e));
     });
   };
-  feature("robot.glb", 14.3, 20.0, 1.2, -Math.PI / 2, { title: "Robot yordamchi", subtitle: "3D model · Animatsiyali personaj", lines: ["Veb-3D'da ishlatiladigan animatsiyali robot personaj modeli.", "Bu portfolio ham shunday real vaqt 3D texnologiyasi — Babylon.js — asosida ishlaydi."], tags: ["Babylon.js", "glTF"] });
-  feature("gears.glb", 14.3, 18.4, 0.9, 0.5, { title: "Shesternyalar", subtitle: "3D model · Mexanizm", lines: ["Ichma-ich tishli g'ildiraklar — yaxshi arxitekturaning ramzi: har bir modul o'z vazifasini bajaradi.", "Feature-Sliced Design (FSD) tamoyili ham shunga o'xshaydi."], tags: ["FSD", "Architecture"] });
-  feature("ion.glb", 14.3, 24.8, 1.3, -1.2, { title: "Ion dvigateli", subtitle: "3D model · Kelajak texnologiyasi", lines: ["Kosmik ion dvigatelining detalli modeli.", "Doimo yangi texnologiyalarni o'rganish — dasturchining asosiy odati."] });
+  feature("robot.glb", 14.3, 20.0, 1.2, -Math.PI / 2, { title: "Robot assistant", subtitle: "3D model · Animated character", lines: ["An animated robot character model used in web 3D.", "This portfolio also runs on real-time 3D technology — Babylon.js."], tags: ["Babylon.js", "glTF"] });
+  feature("gears.glb", 14.3, 18.4, 0.9, 0.5, { title: "Gears", subtitle: "3D model · Mechanism", lines: ["Meshing gears — a symbol of good architecture: every module does its own job.", "The Feature-Sliced Design (FSD) principle is similar."], tags: ["FSD", "Architecture"] });
+  feature("ion.glb", 14.3, 24.8, 1.3, -1.2, { title: "Ion thruster", subtitle: "3D model · Future technology", lines: ["A detailed model of a spacecraft ion thruster.", "Constantly learning new technologies is a developer's core habit."] });
 
   for (const [lx, lz] of [[7.4, 18.4], [11.8, 18.4], [7.4, 23.2], [11.8, 23.2]]) addPendant(ctx, root, lx, lz, ROOM_H, "#cfeaff", 26, 12);
 

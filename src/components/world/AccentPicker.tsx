@@ -55,7 +55,7 @@ export default function AccentPicker({ accentRef }: { accentRef: React.MutableRe
 
   return (
     <Wrap>
-      <ToggleButton type="button" onClick={() => setOpen((v) => !v)} aria-label="Rangni tanlash">
+      <ToggleButton type="button" onClick={() => setOpen((v) => !v)} aria-label="Choose a colour">
         🎨
       </ToggleButton>
       <Panel $open={open}>

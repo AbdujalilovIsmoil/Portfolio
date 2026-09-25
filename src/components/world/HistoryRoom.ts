@@ -227,7 +227,7 @@ export function buildHistoryRoom(ctx: Ctx, parent: Node) {
     g.font = "bold 58px Georgia, serif";
     g.textAlign = "center";
     g.textBaseline = "middle";
-    g.fillText("T A J R I B A   Z A L I", 320, 66);
+    g.fillText("E X P E R I E N C E   H A L L", 320, 66);
   });
   const sg = group(ctx, { parent: root, pos: [HIST_X1 - 0.02, 2.75, 20], rot: [0, -Math.PI / 2, 0] });
   box(ctx, 2.0, 0.4, 0.05, { parent: sg, mat: gold });
@@ -278,14 +278,14 @@ export function buildHistoryRoom(ctx: Ctx, parent: Node) {
     });
   };
   piece("steampunk.glb", -2.6, 18.8, 0.75, 0.75, 0.7, {
-    title: "Antik kamera",
-    subtitle: "Tarixiy eksponat · Fotografiya",
-    lines: ["Viktoriya davri fotoapparatlari ruhidagi «steampunk» uslubidagi kamera.", "Fotografiya XIX asrda paydo bo'lgan — bugungi tasvir texnologiyalarining boshlanishi."],
+    title: "Antique camera",
+    subtitle: "Historical exhibit · Photography",
+    lines: ["A steampunk-style camera inspired by Victorian-era photographic equipment.", "Photography emerged in the 19th century — the beginning of today's imaging technology."],
   });
   piece("nemetona.glb", -2.6, 23.0, 0.8, 1.1, 0.4, {
-    title: "Nemetona haykali",
-    subtitle: "Tarixiy eksponat · Kelt mifologiyasi",
-    lines: ["Nemetona — kelt mifologiyasidagi muqaddas o'rmonlar va ziyoratgohlar homiysi ma'buda.", "Qadimgi Yevropa madaniyatining yorqin ramzlaridan biri."],
+    title: "Statue of Nemetona",
+    subtitle: "Historical exhibit · Celtic mythology",
+    lines: ["Nemetona — the Celtic goddess of sacred groves and sanctuaries.", "One of the vivid symbols of ancient European culture."],
   });
   // cannon on a low wooden deck
   box(ctx, 1.7, 0.16, 1.1, { parent: root, pos: [-5.2, 0.08, 21], cast: true, mat: woodDark });
@@ -294,9 +294,9 @@ export function buildHistoryRoom(ctx: Ctx, parent: Node) {
     pos: [-5.2, 22.6],
     radius: 2.0,
     info: {
-      title: "Kema to'pi",
-      subtitle: "Tarixiy eksponat · Dengiz tarixi",
-      lines: ["Yelkanli kemalar davri (XVII–XVIII asrlar) dengiz to'pi.", "Ko'p asrlar davomida flotlar va dengiz qaroqchilarining asosiy quroli bo'lgan."],
+      title: "Ship's cannon",
+      subtitle: "Historical exhibit · Naval history",
+      lines: ["A naval cannon from the age of sail (17th–18th centuries).", "For centuries the main weapon of fleets and pirates alike."],
     },
   });
   lazy.push(() => {

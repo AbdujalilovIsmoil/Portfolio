@@ -90,7 +90,7 @@ function Workspace({ onClose }: { onClose: () => void }) {
     const doc = frame.current?.contentDocument;
     if (!doc) return;
     const ok = ex.check(doc);
-    setMsg({ ok, text: ok ? "✅ To'g'ri! Barakalla." : "❌ Hali to'g'ri emas. Vazifani qayta o'qing yoki «Maslahat» tugmasini bosing." });
+    setMsg({ ok, text: ok ? "✅ Correct! Well done." : "❌ Not quite yet. Re-read the task or press “Hint”." });
     if (ok) setDone((d) => ({ ...d, [idx]: true }));
   };
   const go = (i: number) => {
@@ -101,10 +101,10 @@ function Workspace({ onClose }: { onClose: () => void }) {
   return (
     <Overlay>
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        <div style={{ fontSize: 22, fontWeight: 800 }}>💻 CSS mashqlari</div>
-        <div style={{ opacity: 0.7, fontSize: 14 }}>Bajarildi: {Object.keys(done).length} / {EXERCISES.length}</div>
+        <div style={{ fontSize: 22, fontWeight: 800 }}>💻 CSS exercises</div>
+        <div style={{ opacity: 0.7, fontSize: 14 }}>Completed: {Object.keys(done).length} / {EXERCISES.length}</div>
         <div style={{ flex: 1 }} />
-        <Btn onClick={onClose}>Yopish (Esc)</Btn>
+        <Btn onClick={onClose}>Close (Esc)</Btn>
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {EXERCISES.map((e, i) => (
@@ -128,18 +128,18 @@ function Workspace({ onClose }: { onClose: () => void }) {
           style={{ flex: 1, resize: "none", background: "#0e1420", color: "#d7e2ff", border: "1px solid #2a3556", borderRadius: 10, padding: 14, fontFamily: "ui-monospace, Menlo, monospace", fontSize: 14, lineHeight: 1.55, outline: "none" }}
         />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ fontSize: 12, opacity: 0.6, letterSpacing: 1 }}>NATIJA</div>
+          <div style={{ fontSize: 12, opacity: 0.6, letterSpacing: 1 }}>RESULT</div>
           <iframe ref={frame} title="preview" sandbox="allow-same-origin" srcDoc={srcDoc} style={{ flex: 1, border: "1px solid #2a3556", borderRadius: 10, background: "#f4f6fb" }} />
         </div>
       </div>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <Btn $primary onClick={check}>Tekshirish</Btn>
-        <Btn onClick={() => setMsg({ ok: true, text: "💡 " + ex.hint })}>Maslahat</Btn>
-        <Btn onClick={() => setCode((c) => c.map((x, i) => (i === idx ? ex.solution : x)))}>Yechimni ko&apos;rsatish</Btn>
-        <Btn onClick={() => setCode((c) => c.map((x, i) => (i === idx ? ex.starter : x)))}>Boshidan</Btn>
+        <Btn $primary onClick={check}>Check</Btn>
+        <Btn onClick={() => setMsg({ ok: true, text: "💡 " + ex.hint })}>Hint</Btn>
+        <Btn onClick={() => setCode((c) => c.map((x, i) => (i === idx ? ex.solution : x)))}>Show solution</Btn>
+        <Btn onClick={() => setCode((c) => c.map((x, i) => (i === idx ? ex.starter : x)))}>Reset</Btn>
         <div style={{ flex: 1 }} />
-        <Btn disabled={idx === 0} onClick={() => go(idx - 1)}>← Oldingi</Btn>
-        <Btn disabled={idx === EXERCISES.length - 1} onClick={() => go(idx + 1)}>Keyingi →</Btn>
+        <Btn disabled={idx === 0} onClick={() => go(idx - 1)}>← Previous</Btn>
+        <Btn disabled={idx === EXERCISES.length - 1} onClick={() => go(idx + 1)}>Next →</Btn>
       </div>
       <div style={{ minHeight: 24, fontWeight: 700, color: msg ? (msg.ok ? "#39d98a" : "#ff8a8a") : "transparent" }}>{msg?.text ?? "."}</div>
     </Overlay>
@@ -169,7 +169,7 @@ export default function CssExercises({ signalRef }: { signalRef: React.MutableRe
     <>
       <Hint $on={state.near}>
         <Key>F</Key>
-        Kompyuterda CSS mashqlari
+        Computer: CSS exercises
       </Hint>
       {state.open && <Workspace onClose={() => endWork(signalRef, input)} />}
     </>

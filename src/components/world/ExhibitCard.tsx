@@ -80,7 +80,7 @@ export default function ExhibitCard({ signalRef }: { signalRef: React.MutableRef
     <>
       <Hint $on={state.near && !state.open}>
         <Key>F</Key>
-        Batafsil ma&apos;lumot
+        More info
       </Hint>
       <Card $on={state.open && !!it}>
         {it && (
@@ -98,7 +98,7 @@ export default function ExhibitCard({ signalRef }: { signalRef: React.MutableRef
               </div>
             )}
             {it.link && <div style={{ marginTop: 12, fontSize: 12.5, color: "#7fe3ff", fontWeight: 700 }}>🔗 {it.link}</div>}
-            <div style={{ marginTop: 12, fontSize: 11, opacity: 0.6 }}>F — yopish</div>
+            <div style={{ marginTop: 12, fontSize: 11, opacity: 0.6 }}>F — close</div>
           </>
         )}
       </Card>

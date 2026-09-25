@@ -77,7 +77,7 @@ export default function AchievementToast({ signalRef }: { signalRef: React.Mutab
     <Toast $shown={shown}>
       <Icon>🏆</Icon>
       <Text>
-        <Label>Yutuq ochildi</Label>
+        <Label>Achievement unlocked</Label>
         <Title>{title}</Title>
       </Text>
     </Toast>
