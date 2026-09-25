@@ -1,7 +1,17 @@
 import "@babylonjs/loaders/glTF";
-import { AssetContainer, Light, PBRMaterial, SceneLoader, TransformNode, type Node, type Scene } from "@babylonjs/core";
+import { AssetContainer, DracoCompression, Light, PBRMaterial, SceneLoader, TransformNode, type Node, type Scene } from "@babylonjs/core";
 import { place, type Ctx, type PlaceOpts } from "./core";
 import { trackLoad } from "./loadingSignal";
+
+// Draco-compressed models decode with our own copy of the decoder (public/draco) instead of Babylon's CDN,
+// so nothing depends on cdn.babylonjs.com being reachable.
+DracoCompression.Configuration = {
+  decoder: {
+    wasmUrl: "/draco/draco_wasm_wrapper_gltf.js",
+    wasmBinaryUrl: "/draco/draco_decoder_gltf.wasm",
+    fallbackUrl: "/draco/draco_decoder_gltf.js",
+  },
+};
 
 const cache = new WeakMap<Scene, Map<string, Promise<AssetContainer>>>();
 
