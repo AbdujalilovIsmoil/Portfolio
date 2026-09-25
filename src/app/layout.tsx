@@ -43,6 +43,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
       className={`${roboto.variable} ${poppins.variable} ${raleway.variable}`}
     >
+      <head>
+        {/* start downloading the models the start screen waits for while the 3D engine is still loading */}
+        {["soldier", "chair", "sofa", "mug", "vase"].map((m) => (
+          <link key={m} rel="preload" as="fetch" href={`/models/${m}.glb`} crossOrigin="anonymous" />
+        ))}
+      </head>
       <body suppressHydrationWarning>
         <StyledComponentsRegistry>
           <Providers>{children}</Providers>

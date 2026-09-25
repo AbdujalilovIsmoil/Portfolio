@@ -539,10 +539,10 @@ export default function CsGame({ onExit }: { onExit: () => void }) {
       const h = spawnHuman(id, new Color3(1, 0.62, 0.5), "rifle");
       const bot: Bot = { id, root: h.root, anims: h.anims, cur: "", hp: 100, alive: true, deathT: 0, cd: rnd(1, 2), target: new Vector3(), phase: rnd(0, 6), flash: h.flash, flashT: 0, gun: h.gun, arms: h.arms, kick: 0 };
       bot.cur = play(bot.anims, "", "Idle");
-      const body = MeshBuilder.CreateBox("hitbody", { width: 0.75, height: 1.25, depth: 0.5 }, scene);
+      const body = MeshBuilder.CreateBox("hitbody", { width: 0.95, height: 1.5, depth: 0.7 }, scene);
       body.parent = h.root;
-      body.position.y = 0.85;
-      const head = MeshBuilder.CreateSphere("hithead", { diameter: 0.32 }, scene);
+      body.position.y = 0.8;
+      const head = MeshBuilder.CreateSphere("hithead", { diameter: 0.42 }, scene);
       head.parent = h.root;
       head.position.y = 1.62;
       for (const [m, isHead] of [[body, false], [head, true]] as [Mesh, boolean][]) {
@@ -620,6 +620,17 @@ export default function CsGame({ onExit }: { onExit: () => void }) {
         addPool(bot.root.position.x, bot.root.position.z);
       }
     };
+    /** Aim ray straight from the player's eye along the look direction (independent of the render camera). */
+    const aimRay = (spread = 0) => {
+      const cp = Math.cos(game.pitch);
+      const dir = new Vector3(Math.sin(game.yaw) * cp, -Math.sin(game.pitch), Math.cos(game.yaw) * cp);
+      if (spread) {
+        dir.x += rnd(-spread, spread);
+        dir.y += rnd(-spread, spread);
+        dir.z += rnd(-spread, spread);
+      }
+      return new Ray(new Vector3(pos.x, EYE + game.air, pos.z), dir.normalize(), 150);
+    };
     const fire = () => {
       const W = WEAPONS[game.weapon];
       if (game.dead || game.reloading > 0 || game.cd > 0 || !game.locked || game.swap > 0.6) return;
@@ -627,9 +638,9 @@ export default function CsGame({ onExit }: { onExit: () => void }) {
         game.cd = W.delay;
         game.swing = 1;
         blip(320, 0.09, 0.03, "sawtooth");
-        const ray = scene.createPickingRay(engine.getRenderWidth() / 2, engine.getRenderHeight() / 2, null, camera);
+        const ray = aimRay();
         ray.length = W.range;
-        const hit = scene.pickWithRay(ray, (m) => m.isPickable && !!m.metadata?.bot);
+        const hit = scene.pickWithRay(ray, (m) => m.isPickable && (m.metadata?.bot?.alive ?? false));
         const bot = hit?.pickedMesh?.metadata?.bot as Bot | undefined;
         if (bot && hit?.pickedPoint) doHit(bot, false, W.dmg, hit.pickedPoint);
         return;
@@ -646,11 +657,9 @@ export default function CsGame({ onExit }: { onExit: () => void }) {
       muzzleLight.intensity = 2.2;
       blip(game.weapon === "pistol" ? 260 : 190, 0.12, 0.06, "sawtooth");
       const spread = (game.weapon === "pistol" ? 0.004 : 0.008) + game.kick * 0.004 + (game.keys.size > 1 ? 0.006 : 0);
-      const ray = scene.createPickingRay(engine.getRenderWidth() / 2, engine.getRenderHeight() / 2, null, camera);
-      ray.direction.x += rnd(-spread, spread);
-      ray.direction.y += rnd(-spread, spread);
+      const ray = aimRay(spread);
       ray.length = W.range;
-      const hit = scene.pickWithRay(ray, (m) => m.isPickable && m.isEnabled() && (!!m.metadata?.bot || solids.includes(m as Mesh)));
+      const hit = scene.pickWithRay(ray, (m) => m.isPickable && m.isEnabled() && ((m.metadata?.bot?.alive ?? false) || solids.includes(m as Mesh)));
       const end = hit?.pickedPoint ?? ray.origin.add(ray.direction.scale(60));
       // tracer from the muzzle
       const from = game.tp && hero ? hero.root.position.add(new Vector3(0, 1.4, 0)) : v.muzzle.getAbsolutePosition();
@@ -688,7 +697,11 @@ export default function CsGame({ onExit }: { onExit: () => void }) {
       game.yaw += e.movementX * 0.0022;
       game.pitch = Math.max(-1.4, Math.min(1.4, game.pitch + e.movementY * 0.0022));
     };
-    const onDown = () => (game.locked ? (game.down = true) : lock());
+    const onDown = () => {
+      if (!game.locked) return lock();
+      game.down = true;
+      fire(); // shoot on the click itself, so even a very quick tap is never lost between frames
+    };
     const onUp = () => (game.down = false);
     const onLockChange = () => {
       game.locked = document.pointerLockElement === canvas;

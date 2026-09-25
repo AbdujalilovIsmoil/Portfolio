@@ -277,7 +277,7 @@ export function buildRoom(ctx: Ctx, parent: import("@babylonjs/core").Node) {
 
   // ---- plants (real models) + vase
   for (const [px, pz] of [[6.2, -4.1], [-6.1, 4.2], [5.8, 4.3]] as [number, number][]) {
-    instantiate(ctx, "plant.glb", root, { pos: [px, 0, pz], scale: 0.9, cast: true }).catch((e) => console.error("plant", e));
+    instantiate(ctx, "plant.glb", root, { pos: [px, 0, pz], scale: 0.9, cast: true, background: true }).catch((e) => console.error("plant", e));
     colliders.push({ x: px, z: pz, hx: 0.32, hz: 0.32 });
   }
   instantiate(ctx, "vase.glb", root, { pos: [-3.7, 0.525, 3.0], scale: 1.6 }).catch((e) => console.error("vase", e));

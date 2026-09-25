@@ -22,6 +22,8 @@ export interface ModelOpts extends PlaceOpts {
   anim?: boolean;
   /** give this copy its own materials (so it can be tinted) */
   clone?: boolean;
+  /** never hold back the start button for this model (decor that may pop in a moment later) */
+  background?: boolean;
 }
 
 let critical = false;
@@ -34,7 +36,7 @@ export const criticalLoads = {
 
 export function instantiate(ctx: Ctx, file: string, parent: Node, o: ModelOpts = {}) {
   const p = doInstantiate(ctx, file, parent, o);
-  return critical ? trackLoad(p) : p;
+  return critical && !o.background ? trackLoad(p) : p;
 }
 
 async function doInstantiate(ctx: Ctx, file: string, parent: Node, o: ModelOpts) {

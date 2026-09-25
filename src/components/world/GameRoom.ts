@@ -132,7 +132,7 @@ export function buildGameRoom(
   staticLight(ctx, root, [GAME_X0 + 1.2, 3.0, CZ], "#ffe2b0", 8, 5);
 
   // ---- real sofa model facing the TV
-  instantiate(ctx, "sofa.glb", root, { pos: [-4.7, 0, CZ], rot: [0, -Math.PI / 2, 0], scale: 1.5, cast: true }).catch((e) => console.error("sofa", e));
+  instantiate(ctx, "sofa.glb", root, { pos: [-4.7, 0, CZ], rot: [0, -Math.PI / 2, 0], scale: 1.5, cast: true, background: true }).catch((e) => console.error("sofa", e));
   colliders.push({ x: -4.7, z: CZ, hx: 0.75, hz: 1.7 });
   box(ctx, 0.9, 0.05, 1.5, { parent: root, pos: [-6.9, 0.42, CZ], cast: true, mat: lit(ctx, { color: "#3a2a20", rough: 0.5 }) });
   for (const [ax, az] of [[-0.35, -0.65], [0.35, -0.65], [-0.35, 0.65], [0.35, 0.65]]) box(ctx, 0.05, 0.4, 0.05, { parent: root, pos: [-6.9 + ax, 0.2, CZ + az], mat: dark });
