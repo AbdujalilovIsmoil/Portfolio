@@ -40,6 +40,7 @@ import type { DoorSignal } from "./doorSignal";
 import { LIGHT_SCALE, group, linear, type Anchor, type Ctx, type Region } from "./core";
 import { getIsLowPowerDevice } from "./performanceTier";
 import { criticalLoads } from "./assets";
+import { resetLoading } from "./loadingSignal";
 import { useWorldInput } from "./WorldInputContext";
 import FloatingInfoPanel from "./FloatingInfoPanel";
 import type { TeleportSignal } from "./teleportSignal";
@@ -235,6 +236,7 @@ export default function World({ teleportRef, introRef, accentRef, flightRef, psR
 
     // ---- build the world (order = per-frame update order, as before)
     const root = group(ctx);
+    resetLoading();
     criticalLoads.begin(); // office, lamps, sofa and the character gate the start button
     const room = buildRoom(ctx, root);
     const doors = createDoorSystem(ctx, { input, doorRef });

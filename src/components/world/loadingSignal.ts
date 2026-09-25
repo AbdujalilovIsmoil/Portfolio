@@ -7,6 +7,7 @@ interface LoadingState {
 
 let total = 0;
 let done = 0;
+let generation = 0;
 let state: LoadingState = { progress: 0, active: false };
 const listeners = new Set<() => void>();
 
@@ -16,10 +17,20 @@ function emit() {
 }
 
 /** Count a promise (a model download) towards the start-screen progress bar. */
+/** Start over (the 3D world is being rebuilt, e.g. React StrictMode remounting it). Old downloads no longer count. */
+export function resetLoading() {
+  generation++;
+  total = 0;
+  done = 0;
+  emit();
+}
+
 export function trackLoad<T>(promise: Promise<T>): Promise<T> {
+  const mine = generation;
   total++;
   emit();
   const finish = () => {
+    if (mine !== generation) return;
     done++;
     emit();
   };
