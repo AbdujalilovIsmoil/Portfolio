@@ -1,0 +1,34 @@
+{
+  "name": "abdujalilov-portfolio",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:perf": "node scripts/perf-test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@babylonjs/core": "^9.28.0",
+    "@babylonjs/loaders": "^9.28.0",
+    "framer-motion": "^13.4.2",
+    "next": "16.3.6",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "styled-components": "^6.5.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.6",
+    "jsdom": "^26.1.0",
+    "puppeteer-core": "^24.43.1",
+    "typescript": "^5",
+    "vitest": "^3.2.7"
+  }
+}
