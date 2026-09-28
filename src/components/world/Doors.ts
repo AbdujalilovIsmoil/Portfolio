@@ -1,11 +1,13 @@
 import type { MutableRefObject } from "react";
-import type { Node } from "@babylonjs/core";
+import { Vector3, type Node } from "@babylonjs/core";
 import { box, canvasTexture, cylinder, group, lerp, lit, plane, setEuler, unlit, type Ctx } from "./core";
 import type { DoorSignal } from "./doorSignal";
 import type { WorldInput } from "./WorldInputContext";
 
 export const DOOR_W = 1.4;
 const DOOR_H = 2.3;
+/** Margin added around the leaf's swept footprint (its own thickness plus a little slack). */
+const LEAF_PAD = 0.12;
 
 interface DoorInst {
   x: number;
@@ -13,7 +15,6 @@ interface DoorInst {
   open: number;
   want: boolean;
   col: { x: number; z: number; hx: number; hz: number };
-  blocking: boolean;
 }
 
 export interface DoorSystem {
@@ -29,6 +30,8 @@ export function createDoorSystem(ctx: Ctx, deps: { input: MutableRefObject<World
   const { input, doorRef } = deps;
   const doors: (DoorInst & { hinge: ReturnType<typeof group>; swing: ReturnType<typeof group>; side: number })[] = [];
   let lastId = input.current.doorId;
+  const leafLocal = new Vector3();
+  const freeEdge = new Vector3();
 
   ctx.onFrame((dt) => {
     let best: (typeof doors)[number] | null = null;
@@ -52,18 +55,27 @@ export function createDoorSystem(ctx: Ctx, deps: { input: MutableRefObject<World
       const goal = d.want ? 1 : 0;
       if (Math.abs(d.open - goal) < 0.0005 && d.open === goal) continue;
       d.open = Math.abs(d.open - goal) < 0.001 ? goal : lerp(d.open, goal, 1 - Math.pow(0.03, dt));
-      // a closed (or still swinging) door is a solid wall; once it is open enough you can pass
-      const shouldBlock = d.open < 0.6;
-      if (shouldBlock !== d.blocking) {
-        d.blocking = shouldBlock;
-        if (shouldBlock) ctx.colliders.push(d.col);
-        else {
-          const at = ctx.colliders.indexOf(d.col);
-          if (at >= 0) ctx.colliders.splice(at, 1);
-        }
-      }
       const inner = d.swing;
       setEuler(inner, 0, -d.side * d.open * (Math.PI / 2) * 0.96, 0);
+      // The leaf itself always blocks — closed, mid-swing, or fully open — by
+      // continuously re-fitting `col` to the leaf's actual swept footprint
+      // (hinge to free edge, in world space) instead of switching between a
+      // "closed" collider and no collider at all once open past a threshold.
+      // A fully open door still has its leaf resting along the wall next to
+      // the hinge — real doors work the same way, you walk around it.
+      d.hinge.computeWorldMatrix(true);
+      inner.computeWorldMatrix(true);
+      const hingePos = d.hinge.getAbsolutePosition();
+      leafLocal.set(DOOR_W, 0, 0);
+      Vector3.TransformCoordinatesToRef(leafLocal, inner.getWorldMatrix(), freeEdge);
+      const minX = Math.min(hingePos.x, freeEdge.x) - LEAF_PAD;
+      const maxX = Math.max(hingePos.x, freeEdge.x) + LEAF_PAD;
+      const minZ = Math.min(hingePos.z, freeEdge.z) - LEAF_PAD;
+      const maxZ = Math.max(hingePos.z, freeEdge.z) + LEAF_PAD;
+      d.col.x = (minX + maxX) / 2;
+      d.col.z = (minZ + maxZ) / 2;
+      d.col.hx = (maxX - minX) / 2;
+      d.col.hz = (maxZ - minZ) / 2;
     }
   });
 
@@ -120,7 +132,7 @@ export function createDoorSystem(ctx: Ctx, deps: { input: MutableRefObject<World
       const cz = hz + dir[1] * (W / 2);
       const col = { x: cx, z: cz, hx: Math.abs(dir[0]) > 0.5 ? W / 2 : 0.12, hz: Math.abs(dir[0]) > 0.5 ? 0.12 : W / 2 };
       ctx.colliders.push(col);
-      doors.push({ x: cx, z: cz, open: 0, want: false, hinge: base, swing, side, col, blocking: true });
+      doors.push({ x: cx, z: cz, open: 0, want: false, hinge: base, swing, side, col });
     },
   };
 }

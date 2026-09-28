@@ -21,24 +21,24 @@ export interface Collider {
 const WALL = "#d9d4c7";
 const T = 0.2;
 
-function skyTexture(ctx: Ctx) {
-  return canvasTexture(ctx, 512, 256, (g) => {
-    const grd = g.createLinearGradient(0, 0, 0, 256);
-    grd.addColorStop(0, "#1b2a55");
-    grd.addColorStop(0.6, "#e0805a");
-    grd.addColorStop(1, "#f4c27a");
-    g.fillStyle = grd;
-    g.fillRect(0, 0, 512, 256);
-    for (let i = 0; i < 26; i++) {
-      const w = 22 + hash(i, 1) * 34;
-      const h = 50 + hash(i, 2) * 110;
-      const x = (i / 26) * 512;
-      g.fillStyle = "#151a2b";
-      g.fillRect(x, 256 - h, w, h);
-      g.fillStyle = "#ffd98a";
-      for (let y = 256 - h + 6; y < 250; y += 9)
-        for (let xx = x + 3; xx < x + w - 4; xx += 8) if (hash(xx * 7 + y, 3) > 0.55) g.fillRect(xx, y, 3, 4);
-    }
+/** Lit-window building facade, tiled per box face. Kept local (not imported
+ * from Stairs.ts) to avoid a Room.ts <-> Stairs.ts circular import — Stairs.ts
+ * already imports ROOM_H from here. */
+function officeFacadeTexture(ctx: Ctx, hue: string) {
+  const cols = 6, rows = 8;
+  return canvasTexture(ctx, 256, 256, (g) => {
+    g.fillStyle = hue;
+    g.fillRect(0, 0, 256, 256);
+    const w = 256 / cols;
+    const h = 256 / rows;
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++) {
+        const lit_ = ((r * 7 + c * 13) % 5) < 2;
+        g.fillStyle = lit_ ? "#ffe9a8" : "#5b7fa6";
+        g.fillRect(c * w + w * 0.2, r * h + h * 0.2, w * 0.6, h * 0.55);
+        g.fillStyle = "rgba(255,255,255,0.25)";
+        g.fillRect(c * w + w * 0.2, r * h + h * 0.2, w * 0.6, 3);
+      }
   });
 }
 
@@ -182,8 +182,28 @@ export function buildRoom(ctx: Ctx, parent: import("@babylonjs/core").Node) {
   box(ctx, 0.05, 0.12, ROOM_HZ * 2, { parent: root, pos: [-ROOM_HX + 0.12, 0.06, 0], mat: darkWood });
   box(ctx, 0.05, 0.12, ROOM_HZ * 2, { parent: root, pos: [ROOM_HX - 0.12, 0.06, 0], mat: darkWood });
 
-  // window: dusk city behind glass
-  plane(ctx, 26, 13, { parent: root, pos: [1, 4.5, wz - 6], mat: unlit(ctx, { map: skyTexture(ctx), opaque: true, fog: false, double: true }) });
+  // window: a real 3D skyline outside (not a painted backdrop) — distant sky
+  // plane behind a scatter of lit-window buildings at varying depth, so the
+  // view actually parallaxes as the player walks past the window.
+  const duskSky = canvasTexture(ctx, 8, 256, (g) => {
+    const grd = g.createLinearGradient(0, 0, 0, 256);
+    grd.addColorStop(0, "#1b2a55");
+    grd.addColorStop(0.6, "#e0805a");
+    grd.addColorStop(1, "#f4c27a");
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 8, 256);
+  });
+  plane(ctx, 160, 70, { parent: root, pos: [1, 22, wz - 85], mat: unlit(ctx, { map: duskSky, opaque: true, fog: false, double: true }) });
+  const facadeHues = ["#232e4a", "#2b3958", "#332c48", "#213347"];
+  const facades = facadeHues.map((h) => unlit(ctx, { map: officeFacadeTexture(ctx, h), opaque: true, fog: false, double: true }));
+  for (let i = 0; i < 18; i++) {
+    const bw = 2.5 + hash(i, 21) * 3;
+    const bh = 4 + hash(i, 22) * 8;
+    const bd = 2.5 + hash(i, 23) * 3;
+    const bx = 1 + (hash(i, 24) - 0.5) * 70;
+    const bz = wz - 30 - hash(i, 25) * 55;
+    box(ctx, bw, bh, bd, { parent: root, pos: [bx, bh / 2, bz], mat: facades[i % facades.length] });
+  }
   const frame = lit(ctx, { color: "#efefef", rough: 0.5 });
   box(ctx, 3.5, 0.08, 0.3, { parent: root, pos: [1, 0.95, wz + 0.02], mat: frame });
   box(ctx, 0.08, 1.75, 0.16, { parent: root, pos: [1, 1.78, wz], mat: frame });

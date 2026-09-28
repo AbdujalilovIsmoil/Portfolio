@@ -105,6 +105,9 @@ export async function buildAnimatedCharacter(
   for (const mesh of result.meshes) {
     mesh.alwaysSelectAsActiveMesh = true;
     mesh.receiveShadows = true;
+    // Excluded from the camera's spring-arm raycast (CameraRig.ts) — otherwise
+    // the arm detects the player's own body as a wall and collapses to 0.
+    mesh.isPickable = false;
     if (ctx.shadow) ctx.shadow.addShadowCaster(mesh);
     const m = mesh.material;
     if (m instanceof PBRMaterial) {

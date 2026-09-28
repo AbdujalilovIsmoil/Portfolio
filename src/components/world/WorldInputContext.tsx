@@ -45,7 +45,7 @@ const KEY_MAP: Record<string, keyof MoveState> = {
 const DEG = Math.PI / 180;
 // Kept low enough that the horizon (and the sky above it — moon, stars, comets)
 // is actually visible by default, not just when the player looks up.
-const INITIAL_PITCH = 19 * DEG;
+const INITIAL_PITCH = 14 * DEG;
 export const PITCH_MIN = 8 * DEG;
 export const PITCH_MAX = 78 * DEG;
 const LOOK_SENSITIVITY = 0.0022;

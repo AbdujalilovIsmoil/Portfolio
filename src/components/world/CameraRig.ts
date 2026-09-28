@@ -1,14 +1,18 @@
-import { Vector3 } from "@babylonjs/core";
+import { Ray, Vector3 } from "@babylonjs/core";
 import type { MutableRefObject } from "react";
-import { clamp, lerp, nearestInRegions, type Ctx } from "./core";
+import { clamp, lerp, type Ctx } from "./core";
 import { ROOM_H } from "./Room";
 import { CITY_Y } from "./Stairs";
 import type { IntroSignal } from "./introSignal";
 import type { TeleportSignal } from "./teleportSignal";
 import type { WorldInput } from "./WorldInputContext";
 
-const RADIUS = 5.2;
+const RADIUS = 6.0;
 const CAR_RADIUS = 8.5;
+/** Pull the hit point back this far so the camera sits just in front of the wall, not on it. */
+const WALL_MARGIN = 0.25;
+/** Absolute floor on the arm — keeps the camera from ever fully collapsing onto the pivot. */
+const MIN_RADIUS = 0.8;
 const INTRO_DURATION = 2.2;
 const IDLE_DELAY = 9;
 const IDLE_ORBIT_SPEED = 0.055;
@@ -23,6 +27,8 @@ export function buildCameraRig(
   const desired = new Vector3();
   const lookTarget = new Vector3();
   const introStart = new Vector3();
+  const rayDir = new Vector3();
+  const ray = new Ray(Vector3.Zero(), Vector3.Up(), 1);
   let yaw = 0;
   let pitch = 0;
   let lastTeleport = teleportRef.current.value;
@@ -34,6 +40,12 @@ export function buildCameraRig(
   let lastInputYaw = input.current.look.yaw;
   let lastInputPitch = input.current.look.pitch;
   let lastSeenJumpId = input.current.jumpId;
+  // The arm's current reach in world units — a spring-arm collision distance,
+  // kept separate from the per-frame position lerp below so a wall can pull
+  // the camera in the same instant it appears (never show through a wall),
+  // while opening back up afterwards still catches up quickly: it must never
+  // visibly lag behind the player, just avoid an instant pop.
+  let armDist = RADIUS;
 
   ctx.onFrame((delta, now) => {
     // Idle cinematic orbit: after a stretch with no input, drift around the character.
@@ -78,11 +90,39 @@ export function buildCameraRig(
     const R = driving ? CAR_RADIUS : RADIUS;
     const horizontal = R * Math.cos(pitch);
     desired.set(player.x + horizontal * Math.sin(yaw), player.y + R * Math.sin(pitch), player.z + horizontal * Math.cos(yaw));
-    const [cx, cz] = nearestInRegions(ctx.regions, desired.x, desired.z, 0.35);
+    lookTarget.set(player.x, player.y + 1.1, player.z);
+
+    // Spring-arm collision: cast a ray from the player's head toward the
+    // orbit position and see how far it actually gets before a wall (or any
+    // other pickable geometry — furniture included) blocks it. The player's
+    // own body is excluded (isPickable = false in AnimatedCharacter.ts) so
+    // the arm can't detect itself and collapse to 0 — the classic spring-arm
+    // bug. Because the shortened arm still lands on this exact ray, the
+    // camera keeps looking at the player from the same angle whether it's at
+    // full reach in the open or pulled in tight at a doorway.
+    rayDir.copyFrom(desired).subtractInPlace(lookTarget);
+    const fullDist = rayDir.length();
+    let allowed = fullDist;
+    if (fullDist > 1e-4) {
+      rayDir.scaleInPlace(1 / fullDist);
+      ray.origin.copyFrom(lookTarget);
+      ray.direction.copyFrom(rayDir);
+      ray.length = fullDist;
+      const hit = ctx.scene.pickWithRay(ray);
+      if (hit?.hit && hit.distance > 0) allowed = Math.max(MIN_RADIUS, hit.distance - WALL_MARGIN);
+    }
+
+    const teleporting = teleportRef.current.value !== lastTeleport;
+    // Pull in the instant a wall appears; ease back out so it doesn't pop.
+    armDist = allowed < armDist || teleporting ? allowed : lerp(armDist, allowed, 1 - Math.pow(0.02, delta));
+    armDist = clamp(armDist, MIN_RADIUS, Math.max(fullDist, MIN_RADIUS));
+    if (fullDist > 1e-4) desired.set(lookTarget.x + rayDir.x * armDist, lookTarget.y + rayDir.y * armDist, lookTarget.z + rayDir.z * armDist);
+
+    // Safety net only — the raycast above already keeps the camera out of
+    // floors/ceilings/walls; this just covers the open street outside.
     const floorY = ctx.groundY(player.x, player.z);
     const outdoors = player.z > 50.6;
-    desired.set(cx, outdoors ? Math.max(desired.y, CITY_Y + 0.8) : clamp(desired.y, floorY + 0.7, ROOM_H - 0.35), cz);
-    lookTarget.set(player.x, player.y + 1.1, player.z);
+    desired.y = outdoors ? Math.max(desired.y, CITY_Y + 0.8) : clamp(desired.y, floorY + 0.7, ROOM_H - 0.35);
 
     // Scripted fly-in the moment the player presses "Boshlash".
     if (introRef.current.value !== lastIntro) {
