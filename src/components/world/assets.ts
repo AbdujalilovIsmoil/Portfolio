@@ -76,15 +76,48 @@ async function doInstantiate(ctx: Ctx, file: string, parent: Node, o: ModelOpts)
 /** Instantiate a model and scale it so its largest side is `size`, standing on `pos` (y = its base). */
 export async function instantiateFit(ctx: Ctx, file: string, parent: Node, o: { pos: [number, number, number]; size: number; yaw?: number; anim?: boolean; clone?: boolean }) {
   const holder = await instantiate(ctx, file, parent, { pos: [0, 0, 0], rot: [0, o.yaw ?? 0, 0], anim: o.anim, clone: o.clone });
+  // Measured fully detached from `parent` — `getHierarchyBoundingVectors(true)` measures in
+  // world space, so if `parent` sits away from the origin (or, rarely under React
+  // StrictMode's double-mount in dev, some other in-flight instantiation's parent chain gets
+  // read instead) that offset used to leak into the "local" fit math below, occasionally
+  // landing a model far from where it was asked for (e.g. a tree, or even a parked car,
+  // sitting at world origin). Detaching removes any such contamination at the source.
+  holder.parent = null;
   const measure = () => {
     holder.computeWorldMatrix(true);
     holder.getChildMeshes().forEach((m) => m.computeWorldMatrix(true));
     return holder.getHierarchyBoundingVectors(true);
   };
-  let { min, max } = measure();
-  const ext = Math.max(max.x - min.x, max.y - min.y, max.z - min.z) || 1;
-  holder.scaling.setAll(o.size / ext);
-  ({ min, max } = measure());
-  holder.position.set(o.pos[0] - (min.x + max.x) / 2, o.pos[1] - min.y, o.pos[2] - (min.z + max.z) / 2);
+  const attempt = () => {
+    let { min, max } = measure();
+    const ext = Math.max(max.x - min.x, max.y - min.y, max.z - min.z) || 1;
+    holder.scaling.setAll(o.size / ext);
+    ({ min, max } = measure());
+    const x = o.pos[0] - (min.x + max.x) / 2;
+    const y = o.pos[1] - min.y;
+    const z = o.pos[2] - (min.z + max.z) / 2;
+    const ok = Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z) && Math.hypot(x - o.pos[0], z - o.pos[2]) <= Math.max(20, o.size * 4);
+    return { ok, x, y, z };
+  };
+  // Whatever measurement glitch causes this is transient rather than structural to the
+  // model — a couple of retries reliably shakes it loose — so only fall all the way back
+  // to an unfitted placement (better than leaving the model at the pre-fit default, e.g. a
+  // tree, or even a parked car, sitting at world origin) if it keeps failing or throws.
+  let result: { ok: boolean; x: number; y: number; z: number } = { ok: false, x: 0, y: 0, z: 0 };
+  for (let i = 0; i < 3 && !result.ok; i++) {
+    try {
+      result = attempt();
+    } catch (e) {
+      console.warn(`instantiateFit: measuring ${file} threw`, e);
+    }
+  }
+  if (result.ok) {
+    holder.position.set(result.x, result.y, result.z);
+  } else {
+    console.warn(`instantiateFit: bad fit for ${file} after retries, falling back to unfitted placement`, result);
+    holder.scaling.setAll(1);
+    holder.position.set(o.pos[0], o.pos[1], o.pos[2]);
+  }
+  holder.parent = parent;
   return holder;
 }

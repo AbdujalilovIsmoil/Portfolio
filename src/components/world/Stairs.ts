@@ -18,8 +18,11 @@ export const FACADE_X1 = 16;
 
 export const STAIRS_REGIONS: Region[] = [
   { x0: CORRIDOR_X0, x1: CORRIDOR_X1, z0: STAIR_Z0 - 1.5, z1: STAIR_Z1 + 1.5 },
-  { x0: CORRIDOR_X0, x1: CORRIDOR_X1, z0: STAIR_Z1 - 1.5, z1: FRONT_Z - 0.05 },
-  { x0: FRONT_DOOR_X - DOOR_W / 2, x1: FRONT_DOOR_X + DOOR_W / 2, z0: FRONT_Z - 1.4, z1: FRONT_Z + 2.2 },
+  // Landing + front door, at full corridor width: the door's own collider (see Doors.ts)
+  // already restricts passage to its actual opening, so this can safely reach past the
+  // door and overlap CITY_REGION — narrowing it here previously left a margin-shrunk gap
+  // right at the doorway that could stop the player from stepping off the stairs.
+  { x0: CORRIDOR_X0, x1: CORRIDOR_X1, z0: STAIR_Z1 - 1.5, z1: FRONT_Z + 3 },
 ];
 
 /** Stepped floor height along the stairs; flat elsewhere. */
@@ -62,8 +65,11 @@ export function buildStairs(ctx: Ctx, parent: Node, doors: DoorSystem) {
     box(ctx, w, 0.02, 0.04, { parent: root, pos: [cx, top + 0.01, STAIR_Z0 + i * RUN + 0.03], mat: nosing });
   }
   // landing floor + stairwell shell
+  // Raised a hair above CITY_Y so its top doesn't sit exactly coplanar with the City.ts
+  // sidewalk slab outside the front door — same Y on both caused z-fighting (flickering)
+  // right under the doorway when the two floors overlapped.
   const len = FRONT_Z - STAIR_Z1;
-  box(ctx, w, 0.1, len, { parent: root, pos: [cx, CITY_Y - 0.05, STAIR_Z1 + len / 2], receive: true, mat: lit(ctx, { color: "#4a505c", rough: 0.4 }) });
+  box(ctx, w, 0.1, len, { parent: root, pos: [cx, CITY_Y - 0.04, STAIR_Z1 + len / 2], receive: true, mat: lit(ctx, { color: "#4a505c", rough: 0.4 }) });
   const shellLen = FRONT_Z - STAIR_Z0;
   const shellH = ROOM_H - CITY_Y;
   for (const x of [CORRIDOR_X0 - 0.1, CORRIDOR_X1 + 0.1]) box(ctx, 0.2, shellH, shellLen, { parent: root, pos: [x, CITY_Y + shellH / 2, STAIR_Z0 + shellLen / 2], receive: true, mat: wall });

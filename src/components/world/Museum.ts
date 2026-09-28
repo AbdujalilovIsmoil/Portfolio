@@ -159,13 +159,6 @@ export function buildMuseum(ctx: Ctx, parent: Node) {
   lazy.push(() => {
     instantiateFit(ctx, "ferrari.glb", root, { pos: [8.9, 0.22, 11], size: 2.3, yaw: 0.6 }).catch((e) => console.error("ferrari", e));
   });
-  cylinder(ctx, 0.75, 0.85, 0.25, 28, { parent: root, pos: [13.3, 0.125, 11.5], mat: white });
-  colliders.push({ x: 13.3, z: 11.5, hx: 0.85, hz: 0.85 });
-  exhibits.push({ pos: [12, 11.5], radius: 2.0, info: { title: "Horse statue", subtitle: "Statue · Wildlife", lines: ["The horse — a symbol of speed, strength and freedom.", "A low-poly 3D model."] } });
-  lazy.push(() => {
-    instantiateFit(ctx, "horse.glb", root, { pos: [13.3, 0.25, 11.5], size: 1.5, yaw: -1.3 }).catch((e) => console.error("horse", e));
-  });
-
   // ---- lights
   for (const [lx, lz] of [[7.5, 8.6], [7.5, 13.4], [12.3, 8.6], [12.3, 13.4], [10, 11]]) addPendant(ctx, root, lx, lz, ROOM_H, "#ffe3b8", 12, 11);
 

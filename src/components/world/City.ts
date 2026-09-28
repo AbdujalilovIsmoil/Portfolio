@@ -1,6 +1,6 @@
 import { Color3, Mesh, MeshBuilder, StandardMaterial, Vector3, type Node, type TransformNode } from "@babylonjs/core";
 import { instantiateFit } from "./assets";
-import { CITY_Y, FRONT_Z, facadeTexture } from "./Stairs";
+import { CITY_Y, FRONT_DOOR_X, FRONT_Z, facadeTexture } from "./Stairs";
 import { Instancer, box, canvasTexture, glowTexture, group, hash, lit, place, setEuler, sprite, unlit, type Ctx, type Region } from "./core";
 
 export const CITY_REGION: Region = { x0: -60, x1: 75, z0: 50.6, z1: 185 };
@@ -101,12 +101,16 @@ export function buildCity(ctx: Ctx, parent: Node): CityApi {
   const trees: TransformNode[] = [];
   const treeFiles = ["tree1.glb", "tree2.glb", "tree3.glb"];
   const treeSpots: [number, number][] = [];
-  for (let x = -54; x < 72; x += 9) {
-    if (x > AVE_X0 - 3 && x < AVE_X1 + 3) continue;
-    treeSpots.push([x + hash(x, 3) * 3, 52.4 + hash(x, 4) * 1.2]);
-    treeSpots.push([x + 4 + hash(x, 5) * 3, 69.3 + hash(x, 6) * 1.2]);
+  // Kept to the sidewalk edges (a couple of metres in from the kerb) and thinned out —
+  // enough to read as a tree-lined street without crowding the walkway or the avenue.
+  for (let x = -54; x < 72; x += 14) {
+    if (x > AVE_X0 - 4 && x < AVE_X1 + 4) continue;
+    const x1 = x + hash(x, 3) * 2;
+    // Line 1 runs right past our own building's front door — keep clear of it.
+    if (x1 < FRONT_DOOR_X - 3 || x1 > FRONT_DOOR_X + 3) treeSpots.push([x1, 51.6 + hash(x, 4) * 0.8]);
+    treeSpots.push([x + 6 + hash(x, 5) * 2, 70.3 + hash(x, 6) * 0.8]);
   }
-  for (let z = 80; z < 180; z += 11) treeSpots.push([29 + hash(z, 7), z], [41 + hash(z, 8), z + 4]);
+  for (let z = 80; z < 180; z += 18) treeSpots.push([27 - hash(z, 7) * 1.5, z], [43 + hash(z, 8) * 1.5, z + 4]);
   treeSpots.forEach(([x, z], i) => {
     ctx.colliders.push({ x, z, hx: 0.5, hz: 0.5 });
     lazy.push(() => {

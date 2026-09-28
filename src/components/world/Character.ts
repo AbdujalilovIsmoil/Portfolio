@@ -14,6 +14,7 @@ const RUN_MULTIPLIER = 2.0;
 const GRAVITY = -22;
 const JUMP_SPEED = 5.2;
 const RADIUS = 0.35;
+const STAIR_FOLLOW_SPEED = 6; // vertical m/s while easing onto a new stair tread
 const FOOTSTEP_WALK_INTERVAL = 0.5;
 const FOOTSTEP_RUN_INTERVAL = 0.3;
 const SPAWN: [number, number] = [0.5, 0.8];
@@ -64,6 +65,8 @@ export function buildCharacter(ctx: Ctx, parent: Node, deps: CharacterDeps) {
     g.setEnabled(!veh.driving);
     if (veh.driving) {
       state.moving = state.running = state.jumping = false;
+      wasGrounded = true;
+      velocityY = 0;
       return;
     }
     const { move } = input.current;
@@ -111,17 +114,30 @@ export function buildCharacter(ctx: Ctx, parent: Node, deps: CharacterDeps) {
     }
 
     const floor = ctx.groundY(p.x, p.z);
-    // walking up/down stairs (or off a kerb): stay glued to the floor unless we are airborne
-    if (wasGrounded && velocityY <= 0 && Math.abs(p.y - floor) < 0.31) p.y = floor;
+    const onStairs = wasGrounded && velocityY <= 0 && Math.abs(p.y - floor) < 0.31;
+    let jumped = false;
     if (input.current.jumpId !== lastJumpId) {
       lastJumpId = input.current.jumpId;
-      if (p.y <= floor + 0.0001) velocityY = JUMP_SPEED;
+      if (onStairs || p.y <= floor + 0.0001) {
+        velocityY = JUMP_SPEED;
+        jumped = true;
+      }
     }
-    velocityY += GRAVITY * delta;
-    p.y = Math.max(floor, p.y + velocityY * delta);
-    if (p.y <= floor) velocityY = 0;
-    wasGrounded = p.y <= floor + 0.0001;
-    state.jumping = p.y > floor + 0.02;
+    const glidingStairs = onStairs && !jumped;
+    if (glidingStairs) {
+      // Walking up/down stairs (or off a kerb): glide to the new tread's height at a
+      // capped speed instead of popping there instantly. A single-frame teleport per
+      // tread reads as a hop/jump; easing it over a couple of frames reads as a step.
+      const diff = floor - p.y;
+      const maxStep = STAIR_FOLLOW_SPEED * delta;
+      p.y += Math.abs(diff) <= maxStep ? diff : Math.sign(diff) * maxStep;
+    } else {
+      velocityY += GRAVITY * delta;
+      p.y = Math.max(floor, p.y + velocityY * delta);
+      if (p.y <= floor) velocityY = 0;
+    }
+    wasGrounded = glidingStairs || p.y <= floor + 0.0001;
+    state.jumping = !glidingStairs && p.y > floor + 0.02;
 
     ctx.player.set(p.x, p.y, p.z);
   });

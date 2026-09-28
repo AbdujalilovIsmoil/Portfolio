@@ -44,9 +44,10 @@ function createEngineSound() {
   };
 }
 
-const qx = (a: number) => new Quaternion(Math.sin(a / 2), 0, 0, Math.cos(a / 2));
-const qz = (a: number) => new Quaternion(0, 0, Math.sin(a / 2), Math.cos(a / 2));
-const mul = (a: Quaternion, b: Quaternion) => a.multiply(b);
+export const qx = (a: number) => new Quaternion(Math.sin(a / 2), 0, 0, Math.cos(a / 2));
+export const qz = (a: number) => new Quaternion(0, 0, Math.sin(a / 2), Math.cos(a / 2));
+export const mul = (a: Quaternion, b: Quaternion) => a.multiply(b);
+export const WHEEL_R = 0.36;
 
 const ENTER_R = 4.2;
 const MAX_SPEED = 24;
@@ -56,7 +57,6 @@ const BRAKE = 26;
 const DRAG = 5;
 const WHEELBASE = 2.7;
 const MAX_STEER = 0.55;
-const WHEEL_R = 0.36;
 const CAR_R = 1.5;
 
 interface Car {
@@ -77,7 +77,7 @@ interface Car {
   anims: { speedRatio: number; start(l?: boolean): void }[];
 }
 
-const colFor = (x: number, z: number, heading: number) => {
+export const colFor = (x: number, z: number, heading: number) => {
   const along = Math.abs(Math.sin(heading)) > 0.7; // pointing along x
   return { x, z, hx: along ? 2.5 : 1.25, hz: along ? 1.25 : 2.5 };
 };
