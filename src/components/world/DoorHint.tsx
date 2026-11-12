@@ -18,7 +18,7 @@ const Bubble = styled.div<{ $on: boolean }>`
   background: ${({ theme }) => theme.headerBg};
   backdrop-filter: blur(10px);
   border: 1px solid ${({ theme }) => theme.accent};
-  color: #fff;
+  color: var(--hud-text);
   font-size: 0.85rem;
   font-family: var(--font-nav);
   font-weight: 600;

@@ -3,6 +3,7 @@ import { instantiateFit } from "./assets";
 import type { ExhibitInfo } from "./exhibitSignal";
 import { addPendant } from "./Lamps";
 import { ROOM_H } from "./Room";
+import { EAST_DX } from "./plan";
 import { box, canvasTexture, cylinder, group, lit, plane, setEuler, unlit, type Ctx, type Region } from "./core";
 
 export const TECH_X0 = 4.7;
@@ -170,7 +171,7 @@ export function buildTechRoom(ctx: Ctx, parent: Node) {
     }
   }
   ctx.onFrame((_, now) => {
-    if (ctx.player.x < 3.5 || ctx.player.z < 15) return;
+    if (ctx.player.x - EAST_DX < 3.5 || ctx.player.z < 15) return;
     for (const c of cubes) {
       c.node.position.y = c.y0 + Math.sin(now * 1.4 + c.ph) * 0.04;
       setEuler(c.node, 0, now * 0.7 + c.ph, 0);

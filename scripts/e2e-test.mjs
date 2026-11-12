@@ -20,6 +20,7 @@ const server = spawn("npx", ["next", "start", "-p", PORT], { stdio: "ignore" });
 const problems = [];
 const models = new Set();
 let draco = false;
+let meshopt = false;
 let browser;
 try {
   for (let i = 0; i < 40; i++) {
@@ -42,6 +43,7 @@ try {
     const u = new URL(r.url());
     if (u.pathname.endsWith(".glb")) models.add(u.pathname);
     if (u.pathname.startsWith("/draco/")) draco = true;
+    if (u.pathname.startsWith("/meshopt/")) meshopt = true;
     if (u.hostname === "localhost" && r.status() >= 400) problems.push(`HTTP ${r.status()} ${u.pathname}`);
   });
   await page.goto(`http://localhost:${PORT}`);
@@ -49,9 +51,10 @@ try {
   await page.evaluate(() => [...document.querySelectorAll("button")].find((b) => /Start/.test(b.textContent)).click());
   await sleep(45000); // background loading of every room, the city, the cars…
 
-  console.log(`models downloaded: ${models.size}, own Draco decoder used: ${draco}`);
+  console.log(`models downloaded: ${models.size}, own Draco decoder used: ${draco}, own meshopt decoder used: ${meshopt}`);
   if (models.size < 25) problems.push(`only ${models.size} models downloaded (expected 25+)`);
   if (!draco) problems.push("the Draco decoder was never fetched from /draco/");
+  if (!meshopt) problems.push("the meshopt decoder was never fetched from /meshopt/");
   const relevant = problems.filter((p) => !/googletagmanager|ERR_FAILED|net::ERR_BLOCKED/i.test(p));
   if (relevant.length) {
     console.log("PROBLEMS:\n - " + [...new Set(relevant)].join("\n - "));

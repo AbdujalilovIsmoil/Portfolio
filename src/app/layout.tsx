@@ -44,8 +44,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${roboto.variable} ${poppins.variable} ${raleway.variable}`}
     >
       <head>
+        {/* apply the saved day/night choice before first paint (see components/world/timeOfDay.ts) */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{document.documentElement.dataset.theme=localStorage.getItem("world-time-of-day")==="night"?"dark":"light"}catch(e){}`,
+          }}
+        />
         {/* start downloading the models the start screen waits for while the 3D engine is still loading */}
-        {["soldier", "chair", "sofa", "mug", "vase"].map((m) => (
+        {["player", "anim-male", "chair", "mug", "vase"].map((m) => (
           <link key={m} rel="preload" as="fetch" href={`/models/${m}.glb`} crossOrigin="anonymous" />
         ))}
       </head>

@@ -40,8 +40,14 @@ describe("3D model files", () => {
   it("uses only extensions that ship with our own files (no CDN decoders)", () => {
     const needsDraco = readdirSync(models).filter((f) => f.endsWith(".glb") && extensionsOf(f).includes("KHR_draco_mesh_compression"));
     if (needsDraco.length) for (const f of ["draco_wasm_wrapper_gltf.js", "draco_decoder_gltf.wasm", "draco_decoder_gltf.js"]) expect(existsSync(join(root, "public/draco", f)), f).toBe(true);
+    const needsMeshopt = readdirSync(models).filter((f) => f.endsWith(".glb") && extensionsOf(f).includes("EXT_meshopt_compression"));
+    if (needsMeshopt.length) expect(existsSync(join(root, "public/meshopt/meshopt_decoder.js")), "meshopt_decoder.js").toBe(true);
+    // the decoders are configured to load from our own origin
+    const assets = readFileSync(join(root, "src/components/world/assets.ts"), "utf8");
+    expect(assets).toContain('"/meshopt/meshopt_decoder.js"');
+    expect(assets).toContain('"/draco/draco_decoder_gltf.wasm"');
     for (const f of readdirSync(models).filter((x) => x.endsWith(".glb"))) {
-      const bad = extensionsOf(f).filter((e) => /meshopt|basisu|ktx/i.test(e));
+      const bad = extensionsOf(f).filter((e) => /basisu|ktx/i.test(e));
       expect(bad, `${f} needs a decoder we do not host`).toEqual([]);
     }
   });

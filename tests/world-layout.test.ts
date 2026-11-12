@@ -1,13 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CITY_Y, FRONT_Z, STAIR_Z0, STAIR_Z1, groundY } from "../src/components/world/Stairs";
-import { OFFICE_REGION, WALK_MARGIN, WALK_REGIONS } from "../src/components/world/regions";
-import { ACH_REGION } from "../src/components/world/AchievementsRoom";
+import { OFFICE_REGION, PLACED, WALK_MARGIN, WALK_REGIONS } from "../src/components/world/regions";
 import { CITY_REGION } from "../src/components/world/City";
-import { GAME_REGION } from "../src/components/world/GameRoom";
-import { HISTORY_REGION } from "../src/components/world/HistoryRoom";
-import { MUSEUM_REGION } from "../src/components/world/Museum";
-import { TECH_REGION } from "../src/components/world/TechRoom";
-import { TEST_REGION } from "../src/components/world/TestimonialsRoom";
 import { inRegions, type Region } from "../src/components/world/core";
 
 /** Can a character (kept WALK_MARGIN away from every edge) step from region a into region b? */
@@ -32,12 +26,12 @@ describe("building layout", () => {
   const seen = reachable(OFFICE_REGION);
 
   it.each([
-    ["game room", GAME_REGION],
-    ["museum", MUSEUM_REGION],
-    ["history hall", HISTORY_REGION],
-    ["technology room", TECH_REGION],
-    ["testimonials room", TEST_REGION],
-    ["achievements room", ACH_REGION],
+    ["game room", PLACED.game],
+    ["museum", PLACED.museum],
+    ["history hall", PLACED.history],
+    ["technology room", PLACED.tech],
+    ["testimonials room", PLACED.testimonials],
+    ["achievements room", PLACED.achievements],
     ["the street", CITY_REGION],
   ] as [string, Region][])("%s is reachable from the office", (_, region) => {
     expect(seen.has(region)).toBe(true);
@@ -52,7 +46,7 @@ describe("building layout", () => {
   });
 
   it("rooms do not overlap each other", () => {
-    const rooms = [GAME_REGION, MUSEUM_REGION, HISTORY_REGION, TECH_REGION, TEST_REGION, ACH_REGION, OFFICE_REGION];
+    const rooms = [...Object.values(PLACED), OFFICE_REGION];
     for (let i = 0; i < rooms.length; i++)
       for (let j = i + 1; j < rooms.length; j++) {
         const a = rooms[i];
@@ -68,7 +62,7 @@ describe("stairs", () => {
     expect(groundY(3, 10)).toBe(0);
     expect(groundY(3, STAIR_Z0 - 1)).toBe(0);
     expect(groundY(3, STAIR_Z1 + 1)).toBe(CITY_Y);
-    expect(groundY(3, FRONT_Z + 5)).toBe(CITY_Y);
+    expect(groundY(3, FRONT_Z + 5)).toBeCloseTo(CITY_Y + 0.07); // the lawn
   });
   it("only ever goes down, in steps no bigger than the character can climb", () => {
     let prev = groundY(3, STAIR_Z0);

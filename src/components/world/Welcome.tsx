@@ -92,7 +92,7 @@ export default function Welcome({ onStart }: { onStart: () => void }) {
         <Emoji>🕹️</Emoji>
         <Heading>Welcome to this interactive world</Heading>
         <Body>
-          Use WASD or the arrow keys to walk around the office and explore the portfolio.
+          Use WASD or the arrow keys to walk around the house and explore the portfolio.
         </Body>
         {!ready && (
           <ProgressTrack>

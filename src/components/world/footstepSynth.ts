@@ -8,7 +8,12 @@ export function warmAudio() {
   if (c.state === "suspended") void c.resume();
 }
 
-function getCtx(): AudioContext {
+/** The shared audio context if the user has already unlocked audio (clicked Start), else null. */
+export function peekCtx(): AudioContext | null {
+  return ctx && ctx.state === "running" ? ctx : null;
+}
+
+export function getCtx(): AudioContext {
   if (!ctx) ctx = new AudioContext();
   return ctx;
 }
@@ -90,5 +95,28 @@ export function playImpactThud(strength = 1) {
   noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
 
   noise.connect(filter).connect(noiseGain).connect(audioCtx.destination);
+  noise.start(now);
+}
+
+/** A watery splash — filtered noise with a falling band-pass, for jumping in and swimming strokes. */
+export function playSplash(volume = 0.15) {
+  const audioCtx = getCtx();
+  if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+  const now = audioCtx.currentTime;
+  const len = Math.floor(audioCtx.sampleRate * 0.45);
+  const buffer = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2);
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = buffer;
+  const bp = audioCtx.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.Q.value = 0.9;
+  bp.frequency.setValueAtTime(2200, now);
+  bp.frequency.exponentialRampToValueAtTime(500, now + 0.4);
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(volume, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+  noise.connect(bp).connect(gain).connect(audioCtx.destination);
   noise.start(now);
 }

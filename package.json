@@ -15,6 +15,7 @@
   "dependencies": {
     "@babylonjs/core": "^9.28.0",
     "@babylonjs/loaders": "^9.28.0",
+    "@mediapipe/tasks-vision": "^0.10.14",
     "framer-motion": "^13.4.2",
     "next": "16.3.6",
     "react": "19.2.8",

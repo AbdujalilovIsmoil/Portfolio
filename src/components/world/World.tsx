@@ -19,34 +19,37 @@ import {
 import { buildCameraRig } from "./CameraRig";
 import { buildCharacter } from "./Character";
 import { buildRoom } from "./Room";
-import { buildGameRoom, GAME_REGION } from "./GameRoom";
-import { buildMuseum, MUSEUM_REGION } from "./Museum";
-import { buildHistoryRoom, HISTORY_REGION } from "./HistoryRoom";
+import { buildGameRoom } from "./GameRoom";
+import { buildMuseum } from "./Museum";
+import { buildHistoryRoom } from "./HistoryRoom";
 import { createExhibitSystem } from "./Exhibits";
 import { createWorkSystem } from "./WorkSystem";
 import type { WorkSignal } from "./workSignal";
-import { buildTechRoom, TECH_REGION } from "./TechRoom";
-import { buildTestimonialsRoom, TEST_REGION } from "./TestimonialsRoom";
-import { buildAchievementsRoom, ACH_REGION } from "./AchievementsRoom";
-import { buildCity, CITY_REGION } from "./City";
-import { buildVehicles } from "./Vehicle";
-import { buildTraffic } from "./Traffic";
-import { buildTrafficLights } from "./TrafficLights";
-import { buildPedestrians } from "./Pedestrians";
-import { buildPets } from "./Pets";
-import { buildBenches } from "./Benches";
-import { buildLandmarks } from "./Landmarks";
-import { buildBillboards } from "./Billboards";
-import { OFFICE_REGION, WALK_REGIONS } from "./regions";
+import { buildTechRoom } from "./TechRoom";
+import { buildTestimonialsRoom } from "./TestimonialsRoom";
+import { buildAchievementsRoom } from "./AchievementsRoom";
+import { buildCity, GROUNDS_REGION } from "./City";
+import { FRONT_Z, isOutdoors } from "./cityLayout";
+import { buildAmbience } from "./ambience";
+import { MOON_DIR, SUN_DIR } from "./Sky";
+import { timeOfDay } from "./timeOfDay";
+import { OFFICE_REGION, PLACED, WALK_REGIONS } from "./regions";
+import { EAST_DX, WEST_DX, shiftRegion } from "./plan";
 import { buildStairs, groundY } from "./Stairs";
+import { HOME_BOX, buildHomeRooms } from "./HomeRooms";
+import { curtains } from "./decor";
+import { buildTvCorner } from "./TvCorner";
+import { buildCat } from "./Cat";
+import { mergeStatic } from "./staticMerge";
+import { ROOM_HZ } from "./Room";
 import type { ExhibitSignal } from "./exhibitSignal";
 import type { PsSignal } from "./psSignal";
-import { buildCorridor } from "./Corridor";
+import { HALL, buildCorridor } from "./Corridor";
 import { createDoorSystem } from "./Doors";
 import type { DoorSignal } from "./doorSignal";
 import { LIGHT_SCALE, group, linear, type Anchor, type Ctx, type Region } from "./core";
 import { getIsLowPowerDevice } from "./performanceTier";
-import { criticalLoads } from "./assets";
+import { criticalLoads, loadContainer } from "./assets";
 import { resetLoading } from "./loadingSignal";
 import { useWorldInput } from "./WorldInputContext";
 import FloatingInfoPanel from "./FloatingInfoPanel";
@@ -87,7 +90,7 @@ export default function World({ teleportRef, introRef, accentRef, flightRef, psR
     const lowPower = getIsLowPowerDevice();
 
     const engine = new Engine(canvas, true, { powerPreference: "high-performance", stencil: false, alpha: false, preserveDrawingBuffer: false }, false);
-    engine.setHardwareScalingLevel(1 / Math.min(Math.max(window.devicePixelRatio || 1, 1), lowPower ? 1 : 1.25));
+    engine.setHardwareScalingLevel(1 / Math.min(Math.max(window.devicePixelRatio || 1, 1), lowPower ? 1 : 1.5));
 
     const scene = new Scene(engine);
     scene.useRightHandedSystem = true; // keep three.js coordinates/rotations 1:1
@@ -130,8 +133,8 @@ export default function World({ teleportRef, introRef, accentRef, flightRef, psR
     if (!lowPower) {
       shadow = new ShadowGenerator(1024, sun);
       shadow.usePercentageCloserFiltering = true;
-      shadow.bias = 0.0008;
-      shadow.normalBias = 0.02;
+      shadow.bias = 0.0015;
+      shadow.normalBias = 0.035;
       shadow.darkness = 0.35;
       shadow.getShadowMap()!.refreshRate = 2;
     }
@@ -152,6 +155,8 @@ export default function World({ teleportRef, introRef, accentRef, flightRef, psR
       groundY,
       regions: WALK_REGIONS,
       time: 0,
+      night: timeOfDay.blend,
+      outdoor: 0,
       onFrame(fn) {
         frameFns.add(fn);
         return () => frameFns.delete(fn);
@@ -170,19 +175,44 @@ export default function World({ teleportRef, introRef, accentRef, flightRef, psR
     ctx.onFrame(() => {
       sun.position.set(ctx.player.x + 6, ctx.player.y + 20, ctx.player.z + 4);
     });
-    // Daylight outdoors: bright warm sun from the south, stronger sky light.
-    let day = 0;
+    // Light, fog and sky follow two eased blends: indoors ⇄ street, and day ⇄ night (header toggle).
+    scene.fogMode = Scene.FOGMODE_EXP2;
+    scene.fogDensity = 0;
     const indoorDir = new Vector3(-0.3, -1, -0.2).normalize();
-    const outDir = new Vector3(0.35, -0.5, -0.65).normalize();
+    const sunDir = SUN_DIR.negate();
+    const moonDir = MOON_DIR.negate();
+    const outDir = new Vector3();
+    const fogDay = Color3.FromHexString("#b4d4f4");
+    const fogNight = Color3.FromHexString("#0c1326");
+    const sunDay = new Color3(1, 0.93, 0.74);
+    const sunNight = new Color3(0.55, 0.66, 1);
+    const hemiDay = linear("#c9d4ea");
+    const hemiNight = linear("#3b4b7a");
+    const groundDay = linear("#6a5644");
+    const groundNight = linear("#1a1b26");
+    const hemiIn = linear("#c9d4ea");
+    const mix = (a: number, b: number, t: number) => a + (b - a) * t;
     ctx.onFrame((dt) => {
-      const goal = ctx.player.z > 47 ? 1 : 0;
-      day += (goal - day) * Math.min(1, dt * 3);
-      sun.intensity = (0.8 + 3.4 * day) * LIGHT_SCALE;
-      hemi.intensity = (1.0 + 1.6 * day) * LIGHT_SCALE;
-      ambient.intensity = (0.45 + 0.5 * day) * LIGHT_SCALE;
-      Vector3.LerpToRef(indoorDir, outDir, day, sun.direction);
+      const goal = isOutdoors(ctx.player.x, ctx.player.z) ? 1 : 0;
+      ctx.outdoor += (goal - ctx.outdoor) * Math.min(1, dt * 3);
+      timeOfDay.blend += ((timeOfDay.night ? 1 : 0) - timeOfDay.blend) * Math.min(1, dt * 1.6);
+      ctx.night = timeOfDay.blend;
+      const o = ctx.outdoor;
+      const n = ctx.night;
+      // outdoors by day: a strong sun and a modest sky fill, for crisp light and real shadows
+      sun.intensity = mix(0.8, mix(5.2, 0.6, n), o) * LIGHT_SCALE;
+      hemi.intensity = mix(1.0 * (1 - 0.2 * n), mix(1.5, 0.55, n), o) * LIGHT_SCALE;
+      ambient.intensity = mix(0.45 * (1 - 0.25 * n), mix(0.3, 0.12, n), o) * LIGHT_SCALE;
+      Vector3.LerpToRef(sunDir, moonDir, n, outDir);
+      Vector3.LerpToRef(indoorDir, outDir, o, sun.direction);
       sun.direction.normalize();
-      sun.diffuse.set(1, 1 - 0.08 * day, 1 - 0.28 * day);
+      Color3.LerpToRef(sunDay, sunNight, n, sun.diffuse);
+      Color3.LerpToRef(hemiIn, n > 0 ? Color3.Lerp(hemiDay, hemiNight, n) : hemiDay, o, hemi.diffuse);
+      Color3.LerpToRef(groundDay, groundNight, n * o, hemi.groundColor);
+      Color3.LerpToRef(fogDay, fogNight, n, scene.fogColor);
+      // a whisper of aerial perspective by day (no milky haze), deeper by night
+      scene.fogDensity = o * mix(0.0011, 0.005, n);
+      if (shadow) shadow.darkness = mix(0.35, 0.6, n * o);
     });
 
     // Room lights are data only; a FIXED pool of real lights is re-pointed at the nearest ones.
@@ -201,7 +231,7 @@ export default function World({ teleportRef, introRef, accentRef, flightRef, psR
       if (poolClock > 0) return;
       poolClock = 0.15;
       const p = ctx.player;
-      const ranked = ctx.lights.map((l) => ({ l, d: Vector3.DistanceSquared(l.pos, p) })).sort((a, b) => a.d - b.d);
+      const ranked = ctx.lights.filter((l) => l.intensity > 0).map((l) => ({ l, d: Vector3.DistanceSquared(l.pos, p) })).sort((a, b) => a.d - b.d);
       pool.forEach((real, i) => {
         const pick = ranked[i];
         if (!pick || pick.d > 18 * 18) {
@@ -247,23 +277,41 @@ export default function World({ teleportRef, introRef, accentRef, flightRef, psR
     criticalLoads.begin(); // office, lamps, sofa and the character gate the start button
     const room = buildRoom(ctx, root);
     const doors = createDoorSystem(ctx, { input, doorRef });
-    buildCorridor(ctx, root, doors);
+    const hall = buildCorridor(ctx, root, doors);
     buildStairs(ctx, root, doors);
-    const game = buildGameRoom(ctx, root, { input, psRef });
-    const museum = buildMuseum(ctx, root);
-    const history = buildHistoryRoom(ctx, root);
-    const tech = buildTechRoom(ctx, root);
-    const testimonials = buildTestimonialsRoom(ctx, root);
-    const ach = buildAchievementsRoom(ctx, root);
+    const home = buildHomeRooms(ctx, root, doors);
+    buildTvCorner(ctx, room.root, doors);
+    buildCat(ctx, root);
+    // curtains on the living-room window (it opens onto the back garden)
+    curtains(ctx, room.root, doors, { axis: "z", at: -ROOM_HZ + 0.1, inward: 1, u: 1, y: 1.78, w: 3.4, h: 1.65, color: "#6a3a2a" });
+    // The themed rooms are built in their own coordinates and shifted sideways as a whole to open
+    // up the central hall (plan.ts): their colliders and exhibits move with them.
+    const offsetDone = new WeakSet<object>();
+    const placed = <R extends { colliders: { x: number }[] }>(dx: number, build: (p: TransformNode) => R): R => {
+      const wrap = group(ctx, { parent: root, pos: [dx, 0, 0] });
+      wrap.computeWorldMatrix(true);
+      const c0 = ctx.colliders.length;
+      const e0 = ctx.exhibits.length;
+      const r = build(wrap);
+      for (const c of [...ctx.colliders.slice(c0), ...r.colliders]) {
+        if (offsetDone.has(c)) continue;
+        offsetDone.add(c);
+        c.x += dx;
+      }
+      for (const e of ctx.exhibits.slice(e0)) {
+        e.pos = [e.pos[0] + dx, e.pos[1]];
+        e.region = shiftRegion(e.region, dx);
+      }
+      return r;
+    };
+    const game = placed(WEST_DX, (p) => buildGameRoom(ctx, p, { input, psRef }));
+    const museum = placed(EAST_DX, (p) => buildMuseum(ctx, p));
+    const history = placed(WEST_DX, (p) => buildHistoryRoom(ctx, p));
+    const tech = placed(EAST_DX, (p) => buildTechRoom(ctx, p));
+    const testimonials = placed(EAST_DX, (p) => buildTestimonialsRoom(ctx, p));
+    const ach = placed(WEST_DX, (p) => buildAchievementsRoom(ctx, p));
     const city = buildCity(ctx, root);
-    buildVehicles(ctx, root, city, { input, doorRef });
-    buildTrafficLights(ctx, root);
-    buildTraffic(ctx, root);
-    buildPedestrians(ctx, root);
-    buildPets(ctx, root);
-    buildBenches(ctx, root);
-    buildLandmarks(ctx, root);
-    buildBillboards(ctx, root);
+    buildAmbience(ctx);
     createWorkSystem(ctx, { input, workRef });
     createExhibitSystem(ctx, { input, exhibitRef });
     ctx.colliders.push(...room.colliders, ...game.colliders, ...museum.colliders, ...history.colliders, ...tech.colliders, ...testimonials.colliders, ...ach.colliders);
@@ -271,8 +319,12 @@ export default function World({ teleportRef, introRef, accentRef, flightRef, psR
     const modelReady = buildCharacter(ctx, root, { input, accentRef, flightRef });
     buildCameraRig(ctx, { input, teleportRef, introRef });
     ctx.afterBuild.forEach((fn) => fn());
+    // static batching of every room's plain geometry (see staticMerge.ts)
+    for (const r of [room.root, hall.root, home, game.root, museum.root, history.root, tech.root, testimonials.root, ach.root]) mergeStatic(ctx, r);
     criticalLoads.end();
     setBuilt({ ctx, anchors });
+    // dev-only handle for poking at the world from the console / automated screenshots
+    if (process.env.NODE_ENV !== "production" || new URLSearchParams(location.search).has("debug")) (window as unknown as { __world?: unknown }).__world = { ctx, input, engine, loadContainer };
     modelReady.catch((e) => {
       console.error("Character failed to load", e);
     });
@@ -280,13 +332,15 @@ export default function World({ teleportRef, introRef, accentRef, flightRef, psR
     // Rooms far from the player are switched off entirely (no draw calls, no shadow casting).
     const gated: { node: TransformNode; region: Region }[] = [
       { node: room.root, region: OFFICE_REGION },
-      { node: game.root, region: GAME_REGION },
-      { node: museum.root, region: MUSEUM_REGION },
-      { node: history.root, region: HISTORY_REGION },
-      { node: tech.root, region: TECH_REGION },
-      { node: testimonials.root, region: TEST_REGION },
-      { node: ach.root, region: ACH_REGION },
-      { node: city.root, region: CITY_REGION },
+      { node: game.root, region: PLACED.game },
+      { node: museum.root, region: PLACED.museum },
+      { node: history.root, region: PLACED.history },
+      { node: tech.root, region: PLACED.tech },
+      { node: testimonials.root, region: PLACED.testimonials },
+      { node: ach.root, region: PLACED.achievements },
+      { node: city.root, region: GROUNDS_REGION },
+      { node: hall.root, region: HALL },
+      { node: home, region: HOME_BOX },
     ];
     let gateClock = 0;
     ctx.onFrame((dt) => {
@@ -294,7 +348,27 @@ export default function World({ teleportRef, introRef, accentRef, flightRef, psR
       if (gateClock > 0) return;
       gateClock = 0.25;
       const { x, z } = ctx.player;
+      // Standing in the central hall you can look down it through any open door: keep every themed
+      // room on (otherwise a far one shows the sky through its doorway). The bedroom and kitchen are
+      // seen through their windows from the front yard too.
+      const inHall = x > HALL.x0 - 0.5 && x < HALL.x1 + 0.5 && z > HALL.z0 - 1 && z < HALL.z1 + 1.5;
+      const doorOf = new Map<TransformNode, [number, number]>([
+        [game.root, [HALL.x0, 11]], [history.root, [HALL.x0, 20]], [ach.root, [HALL.x0, 29]],
+        [museum.root, [HALL.x1, 11]], [tech.root, [HALL.x1, 20]], [testimonials.root, [HALL.x1, 29]],
+      ]);
       for (const g of gated) {
+        const door = doorOf.get(g.node);
+        if (inHall && door && doors.isOpenAt(door[0], door[1])) {
+          if (!g.node.isEnabled(false)) g.node.setEnabled(true);
+          continue;
+        }
+        if (g.node === home) {
+          // also seen through the front windows from the yard
+          const fromYard = z > FRONT_Z && z < FRONT_Z + 10 && x > -16 && x < 21;
+          const nearRooms = x > g.region.x0 - 4 && x < g.region.x1 + 4 && z > g.region.z0 - 4 && z < g.region.z1 + 4;
+          if (g.node.isEnabled(false) !== (fromYard || nearRooms)) g.node.setEnabled(fromYard || nearRooms);
+          continue;
+        }
         const margin = g.node === city.root ? 14 : 9;
         const near = x > g.region.x0 - margin && x < g.region.x1 + margin && z > g.region.z0 - margin && z < g.region.z1 + margin;
         if (g.node.isEnabled(false) !== near) g.node.setEnabled(near);
@@ -302,7 +376,7 @@ export default function World({ teleportRef, introRef, accentRef, flightRef, psR
     });
 
     // Adaptive resolution: if the frame rate sags below ~60, render fewer pixels; recover when there is headroom.
-    const baseScale = 1 / Math.min(Math.max(window.devicePixelRatio || 1, 1), lowPower ? 1 : 1.25);
+    const baseScale = 1 / Math.min(Math.max(window.devicePixelRatio || 1, 1), lowPower ? 1 : 1.5);
     let scale = baseScale;
     let qualityClock = 2;
     ctx.onFrame((dt) => {
@@ -311,7 +385,8 @@ export default function World({ teleportRef, introRef, accentRef, flightRef, psR
       qualityClock = 1.2;
       const fps = engine.getFps();
       let next = scale;
-      if (fps < 54 && scale < baseScale * 1.8) next = scale * 1.1;
+      // (never below ~75% resolution: lower than that the picture visibly goes soft)
+      if (fps < 56 && scale < Math.max(1, baseScale) * 1.3) next = scale * 1.08;
       else if (fps > 59 && scale > baseScale) next = Math.max(baseScale, scale / 1.05);
       if (next !== scale) {
         scale = next;

@@ -153,3 +153,17 @@ npm run start
 [![Telegram](https://img.shields.io/badge/Telegram-0088CC?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/ismoilabdujalilov)
 [![Instagram](https://img.shields.io/badge/Instagram-E4405F?style=for-the-badge&logo=instagram&logoColor=white)](https://www.instagram.com/abdujalilovismoil)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/%F0%9F%9A%80-ismoil-abdujalilov-60490826b)
+
+## 3D assets
+
+- All models in `public/models` are compressed with `node scripts/optimize-models.mjs` (meshopt or Draco geometry, WebP textures, very dense scans decimated). The Draco and meshopt decoders are self-hosted in `public/draco` and `public/meshopt`, so nothing is loaded from a CDN.
+- The floor plan is a central-hall villa (`plan.ts`): front door → entrance hall with the bedroom and kitchen → a furnished 9 m hall with the six themed rooms off both sides → the living room.
+- Furniture, kitchenware, lamps, flowers, shrubs and the jacaranda trees are CC0 models from [Poly Haven](https://polyhaven.com) (the tree thinned to a fraction of its leaf cards so a dozen can sway at 60 fps). The player is a Ready Player Me avatar (from the three.js examples) dressed in code; to play as yourself, drop your own Mixamo-rigged avatar in as `public/models/player.glb` — its own Idle/Walk/Run clips are used if present, otherwise a hidden three.js Xbot (`anim-male.glb`) plays neutral Mixamo clips and its pose is copied onto the avatar bone-by-bone by direction (`PoseCopy.ts`), with feet planted on the ground and procedural jump / swim poses on top.
+- The moon texture is NASA LRO imagery (via the three.js examples); the swallows are procedural (`Birds.ts`).
+- The house, its hovli (yard, garden, wall and gate) and the countryside around it are procedural — see `House.ts`, `City.ts` and `CityKit.ts`.
+- The TV film is a 100-second excerpt of *Big Buck Bunny* (© Blender Foundation, CC BY 3.0, via archive.org), re-encoded to 640p.
+- The house cat is Quaternius' "Cat" (CC0, via poly.pizza).
+- Append `?debug` to the URL to get `window.__world` in a production build (used for automated checks).
+- Head tracking (header button with a face): MediaPipe Face Landmarker, self-hosted in `public/mediapipe` (wasm + `face_landmarker.task`, Apache-2.0). Runs only after the user clicks it; nothing leaves the browser.
+- Mountains are a procedural heightfield (`Mountains.ts`); rooms' plain geometry is merged per material at load (`staticMerge.ts`).
+- Perf test on battery: macOS/Chrome cap rendering at 30 Hz, so run `UNCAPPED=1 npm run test:perf` (or plug in) for meaningful numbers.

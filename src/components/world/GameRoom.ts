@@ -3,6 +3,7 @@ import type { MutableRefObject } from "react";
 import type { PsSignal } from "./psSignal";
 import type { WorldInput } from "./WorldInputContext";
 import { ROOM_H } from "./Room";
+import { WEST_DX } from "./plan";
 import { instantiate } from "./assets";
 import { addPendant } from "./Lamps";
 import { box, canvasTexture, cylinder, group, lit, plane, staticLight, setEuler, sphere, unlit, type Ctx, type Region } from "./core";
@@ -146,8 +147,9 @@ export function buildGameRoom(
   // ---- play interaction
   let lastInteract = input.current.interactId;
   ctx.onFrame(() => {
-    const d = Math.hypot(ctx.player.x - (GAME_X0 + 1.4), ctx.player.z - CONSOLE.z + 1.2);
-    const near = d < 3.4 && ctx.player.x < GAME_X1 - 0.5;
+    const px = ctx.player.x - WEST_DX; // the room is built in its own coordinates, then shifted (plan.ts)
+    const d = Math.hypot(px - (GAME_X0 + 1.4), ctx.player.z - CONSOLE.z + 1.2);
+    const near = d < 3.4 && px < GAME_X1 - 0.5;
     psRef.current.near = near && !psRef.current.playing;
     if (input.current.interactId !== lastInteract) {
       lastInteract = input.current.interactId;

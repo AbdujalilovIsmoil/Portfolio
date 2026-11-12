@@ -4,8 +4,6 @@ import { useRef, useState } from "react";
 import { WorldInputProvider } from "./WorldInputContext";
 import WorldCanvas from "./WorldCanvas";
 import Hud from "./Hud";
-import Compass from "./Compass";
-import AccentPicker from "./AccentPicker";
 import MobileControls from "./MobileControls";
 import Welcome from "./Welcome";
 import TeleportFade from "./TeleportFade";
@@ -50,8 +48,6 @@ export default function Experience() {
   return (
     <WorldInputProvider>
       <Hud />
-      <Compass />
-      <AccentPicker accentRef={accentRef} />
 
       <WorldCanvas
         accent={ACCENT}

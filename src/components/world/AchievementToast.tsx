@@ -17,7 +17,7 @@ const Toast = styled.div<{ $shown: boolean }>`
   background: ${({ theme }) => theme.bgElevated};
   border: 1px solid ${({ theme }) => theme.accent};
   box-shadow: ${({ theme }) => theme.shadow};
-  color: #fff;
+  color: var(--hud-text);
   font-family: var(--font-nav);
   pointer-events: none;
   transform: translate(-50%, ${({ $shown }) => ($shown ? "0" : "-14px")});

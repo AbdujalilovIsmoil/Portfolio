@@ -3,6 +3,7 @@ import type { MutableRefObject } from "react";
 import { clamp, lerp, type Ctx } from "./core";
 import { ROOM_H } from "./Room";
 import { CITY_Y } from "./Stairs";
+import { isOutdoors } from "./cityLayout";
 import type { IntroSignal } from "./introSignal";
 import type { TeleportSignal } from "./teleportSignal";
 import type { WorldInput } from "./WorldInputContext";
@@ -46,6 +47,7 @@ export function buildCameraRig(
   // while opening back up afterwards still catches up quickly: it must never
   // visibly lag behind the player, just avoid an instant pop.
   let armDist = RADIUS;
+  let seatYaw0 = 0;
 
   ctx.onFrame((delta, now) => {
     // Idle cinematic orbit: after a stretch with no input, drift around the character.
@@ -121,7 +123,7 @@ export function buildCameraRig(
     // Safety net only — the raycast above already keeps the camera out of
     // floors/ceilings/walls; this just covers the open street outside.
     const floorY = ctx.groundY(player.x, player.z);
-    const outdoors = player.z > 50.6;
+    const outdoors = isOutdoors(player.x, player.z);
     desired.y = outdoors ? Math.max(desired.y, CITY_Y + 0.8) : clamp(desired.y, floorY + 0.7, ROOM_H - 0.35);
 
     // Scripted fly-in the moment the player presses "Boshlash".
@@ -132,6 +134,21 @@ export function buildCameraRig(
       introStart.set(6, ROOM_H - 0.4, 4.5);
     }
 
+    // seated: eye-level view in the direction the seat faces (e.g. at the TV); the mouse can still
+    // look around a little
+    if (ctx.seat && !introActive) {
+      const st = ctx.seat;
+      const look = input.current.look.yaw - seatYaw0;
+      const fy = st.yaw + clamp(look, -1, 1) * 0.8;
+      const eye = 1.12;
+      desired.set(player.x + Math.sin(st.yaw) * 0.12, player.y + eye + 0.05, player.z + Math.cos(st.yaw) * 0.12);
+      lookTarget.set(desired.x + Math.sin(fy) * 4, desired.y - 0.15 + clamp(-input.current.look.pitch, -0.5, 0.5), desired.z + Math.cos(fy) * 4);
+      Vector3.LerpToRef(camera.position, desired, 1 - Math.pow(0.002, delta), camera.position);
+      Vector3.LerpToRef(target, lookTarget, 1 - Math.pow(0.002, delta), target);
+      camera.setTarget(target);
+      return;
+    }
+    seatYaw0 = input.current.look.yaw;
     if (introActive) {
       introElapsed += delta;
       const p = Math.min(1, introElapsed / INTRO_DURATION);

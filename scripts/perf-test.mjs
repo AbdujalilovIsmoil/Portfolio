@@ -39,7 +39,7 @@ try {
   browser = await puppeteer.launch({
     executablePath: CHROME,
     headless: "new",
-    args: ["--use-angle=metal", "--ignore-gpu-blocklist"],
+    args: ["--use-angle=metal", "--ignore-gpu-blocklist", "--disable-features=BatterySaverModeAvailable", ...(process.env.UNCAPPED ? ["--disable-frame-rate-limit"] : [])],
     defaultViewport: { width: 1280, height: 720 },
   });
   const page = await browser.newPage();
@@ -69,6 +69,7 @@ try {
   const results = [];
   const collect = async (label) => {
     const dts = await page.evaluate(() => window.__dt.splice(0));
+    if (process.env.UNCAPPED) console.log(label, "slow frames:", dts.map((d, i) => [i, d]).filter(([, d]) => d > 25).map(([i, d]) => i + ":" + d.toFixed(0)).join(" "));
     const sorted = [...dts].sort((a, b) => a - b);
     const avg = dts.reduce((a, b) => a + b, 0) / dts.length;
     results.push({ label, fps: 1000 / avg, p99: sorted[Math.floor(sorted.length * 0.99)], max: sorted[sorted.length - 1] });

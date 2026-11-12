@@ -1,10 +1,11 @@
 import "@babylonjs/loaders/glTF";
-import { AssetContainer, DracoCompression, Light, PBRMaterial, SceneLoader, TransformNode, type Node, type Scene } from "@babylonjs/core";
+import { AssetContainer, DracoCompression, Light, MeshoptCompression, PBRMaterial, SceneLoader, TransformNode, type Node, type Scene } from "@babylonjs/core";
 import { place, type Ctx, type PlaceOpts } from "./core";
 import { trackLoad } from "./loadingSignal";
 
-// Draco-compressed models decode with our own copy of the decoder (public/draco) instead of Babylon's CDN,
-// so nothing depends on cdn.babylonjs.com being reachable.
+// Draco- and meshopt-compressed models decode with our own copies of the decoders (public/draco,
+// public/meshopt) instead of Babylon's CDN, so nothing depends on cdn.babylonjs.com being reachable.
+// (scripts/optimize-models.mjs produces the compressed files.)
 DracoCompression.Configuration = {
   decoder: {
     wasmUrl: "/draco/draco_wasm_wrapper_gltf.js",
@@ -12,6 +13,7 @@ DracoCompression.Configuration = {
     fallbackUrl: "/draco/draco_decoder_gltf.js",
   },
 };
+MeshoptCompression.Configuration = { decoder: { url: "/meshopt/meshopt_decoder.js" } };
 
 const cache = new WeakMap<Scene, Map<string, Promise<AssetContainer>>>();
 

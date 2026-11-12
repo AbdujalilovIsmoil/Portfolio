@@ -77,8 +77,13 @@ export interface Ctx {
   player: Vector3;
   overlay: HTMLElement;
   vehicle: VehicleState;
-  /** Furniture footprints the player can't walk through. */
-  colliders: { x: number; z: number; hx: number; hz: number }[];
+  /**
+   * Footprints the player can't walk through. With `top` (a world y) the thing is low enough to
+   * jump onto / over: above `top` it no longer blocks, and you can stand on it.
+   */
+  colliders: { x: number; z: number; hx: number; hz: number; top?: number }[];
+  /** The seat the player is sitting on (Seats.ts), if any. */
+  seat?: { x: number; z: number; yaw: number; y: number; onStand?: () => void } | null;
   /** Walkable floor rectangles (office, doorway, corridor). */
   regions: Region[];
   /** Floor height under (x, z): 0 upstairs, stepped along the stairs, -3.6 on the street. */
@@ -86,6 +91,10 @@ export interface Ctx {
   /** Things you can inspect with F (frames, statues…), from every gallery room. */
   exhibits: { pos: [number, number]; radius: number; info: import("./exhibitSignal").ExhibitInfo; region: Region }[];
   time: number;
+  /** 0 = day … 1 = night (eased; see timeOfDay.ts). Written by World.tsx every frame. */
+  night: number;
+  /** 0 = indoors … 1 = out on the street (eased). Written by World.tsx every frame. */
+  outdoor: number;
   /** Per-frame callback; returns a disposer. Runs in registration order. */
   onFrame(fn: (dt: number, t: number) => void): () => void;
   /** All room lights (data only) — see World.tsx for the pooled real lights. */
@@ -95,6 +104,8 @@ export interface Ctx {
   /** Callbacks run once the whole scene is built (e.g. mirror render lists). */
   afterBuild: (() => void)[];
   glowTex?: DynamicTexture;
+  /** Move the player (set by Character.ts; used by dev tooling and tests). */
+  teleportPlayer?: (x: number, z: number) => void;
 }
 
 /** three.js light intensities are physical (÷π on diffuse); Babylon's aren't. */
@@ -338,7 +349,10 @@ export const disc = (ctx: Ctx, r: number, seg: number, o: PlaceOpts) => place(ct
 // --------------------------------------------------------------- textures
 
 export function canvasTexture(ctx: Ctx, w: number, h: number, draw: (g: CanvasRenderingContext2D) => void) {
-  const t = new DynamicTexture("tex", { width: w, height: h }, ctx.scene, false);
+  // Mipmapped + anisotropic: without mipmaps, tiled patterns (bricks, grass, tiles) shimmer and
+  // crawl ("moiré") as soon as they are a few metres away or seen at a grazing angle.
+  const t = new DynamicTexture("tex", { width: w, height: h }, ctx.scene, true, Texture.TRILINEAR_SAMPLINGMODE);
+  t.anisotropicFilteringLevel = 8;
   const g = t.getContext() as CanvasRenderingContext2D;
   draw(g);
   t.update(true);

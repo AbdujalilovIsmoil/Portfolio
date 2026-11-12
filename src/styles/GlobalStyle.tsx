@@ -22,6 +22,23 @@ const GlobalStyle = createGlobalStyle`
     --shadow: 0 20px 60px -20px rgba(0, 0, 0, 0.7);
     --header-bg: rgba(5, 7, 13, 0.7);
     --canvas-fog: #05070d;
+    --hud-text: #ffffff;
+  }
+
+  /* Day mode (sun in the header toggle): light glass UI over the bright sky. */
+  :root[data-theme="light"] {
+    --bg-elevated: #fbfcff;
+    --surface: rgba(255, 255, 255, 0.6);
+    --text: #1a2233;
+    --text-muted: #556073;
+    --heading: #0d1320;
+    --accent: #3f63e6;
+    --accent-soft: rgba(63, 99, 230, 0.12);
+    --accent-2: #f07a4f;
+    --border: rgba(15, 25, 45, 0.14);
+    --shadow: 0 20px 50px -24px rgba(20, 30, 60, 0.45);
+    --header-bg: rgba(255, 255, 255, 0.78);
+    --hud-text: #121826;
   }
 
   * {

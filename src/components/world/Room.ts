@@ -1,4 +1,5 @@
 import { addPendant } from "./Lamps";
+import { wallpaper } from "./decor";
 import { instantiate } from "./assets";
 import { box, canvasTexture, cylinder, group, hash, lit, plane, staticLight, setEuler, unlit, type Anchor, type Ctx,  } from "./core";
 
@@ -7,8 +8,9 @@ export const ROOM_HZ = 5; // half depth (z)
 export const ROOM_H = 3.4;
 
 export const DOOR_X = 3.0;
-/** Chair positions at the three office computers (x, z). */
-export const WORK_SPOTS: [number, number][] = [[-2.6, -3.05], [4.8, -3.05], [-5.6, -3.05]];
+/** Where the desk with the computer stands (in the bedroom, HomeRooms.ts) and its chair (x, z). */
+export const DESK = { x: -1.4, z: 40.95 };
+export const WORK_SPOTS: [number, number][] = [[DESK.x, DESK.z + 0.85]];
 export const DOOR_W = 1.4;
 
 export interface Collider {
@@ -20,27 +22,6 @@ export interface Collider {
 
 const WALL = "#d9d4c7";
 const T = 0.2;
-
-/** Lit-window building facade, tiled per box face. Kept local (not imported
- * from Stairs.ts) to avoid a Room.ts <-> Stairs.ts circular import — Stairs.ts
- * already imports ROOM_H from here. */
-function officeFacadeTexture(ctx: Ctx, hue: string) {
-  const cols = 6, rows = 8;
-  return canvasTexture(ctx, 256, 256, (g) => {
-    g.fillStyle = hue;
-    g.fillRect(0, 0, 256, 256);
-    const w = 256 / cols;
-    const h = 256 / rows;
-    for (let r = 0; r < rows; r++)
-      for (let c = 0; c < cols; c++) {
-        const lit_ = ((r * 7 + c * 13) % 5) < 2;
-        g.fillStyle = lit_ ? "#ffe9a8" : "#5b7fa6";
-        g.fillRect(c * w + w * 0.2, r * h + h * 0.2, w * 0.6, h * 0.55);
-        g.fillStyle = "rgba(255,255,255,0.25)";
-        g.fillRect(c * w + w * 0.2, r * h + h * 0.2, w * 0.6, 3);
-      }
-  });
-}
 
 const CODE = [
   "import { useState } from 'react';",
@@ -119,7 +100,8 @@ function typingScreen(ctx: Ctx) {
   };
   draw(0);
   ctx.onFrame((dt) => {
-    if (ctx.player.z > 3 || ctx.player.x < -8) return; // only animate while the office is in view
+    // only animate while the desk is in view
+    if (Math.hypot(ctx.player.x - WORK_SPOTS[0][0], ctx.player.z - WORK_SPOTS[0][1]) > 9) return;
     acc += dt;
     if (acc < 0.06) return;
     acc = 0;
@@ -135,26 +117,142 @@ function typingScreen(ctx: Ctx) {
   return tex;
 }
 
-function board(ctx: Ctx) {
-  return canvasTexture(ctx, 512, 300, (g) => {
-    g.fillStyle = "#f5f6f4";
-    g.fillRect(0, 0, 512, 300);
-    g.strokeStyle = "#3d5a9a";
-    g.lineWidth = 3;
-    for (let i = 0; i < 6; i++) {
+/** Suzani: big embroidered medallions on cream cloth. */
+function suzani(ctx: Ctx) {
+  return canvasTexture(ctx, 512, 320, (g) => {
+    g.fillStyle = "#efe2c4";
+    g.fillRect(0, 0, 512, 320);
+    g.strokeStyle = "#8c1c22";
+    g.lineWidth = 10;
+    g.strokeRect(10, 10, 492, 300);
+    const medallion = (cx: number, cy: number, r: number, c1: string, c2: string) => {
+      g.fillStyle = c1;
       g.beginPath();
-      g.moveTo(30, 40 + i * 42);
-      for (let x = 30; x < 470; x += 20) g.lineTo(x, 40 + i * 42 + (hash(x + i, 9) - 0.5) * 12);
-      g.stroke();
+      g.arc(cx, cy, r, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = c2;
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        g.beginPath();
+        g.ellipse(cx + Math.cos(a) * r * 0.62, cy + Math.sin(a) * r * 0.62, r * 0.2, r * 0.1, a, 0, Math.PI * 2);
+        g.fill();
+      }
+      g.beginPath();
+      g.arc(cx, cy, r * 0.3, 0, Math.PI * 2);
+      g.fill();
+    };
+    medallion(256, 160, 78, "#b0242c", "#f2c230");
+    for (const [x, y] of [[96, 90], [416, 90], [96, 230], [416, 230]]) medallion(x, y, 44, "#1d3b6b", "#e8c06a");
+    g.fillStyle = "#3f6f2a";
+    for (let i = 0; i < 18; i++) {
+      g.beginPath();
+      g.ellipse(30 + i * 27, 300, 8, 4, 0.6, 0, Math.PI * 2);
+      g.fill();
     }
   });
+}
+
+/** A woven carpet (gilam): red field, a central medallion, borders. */
+function gilam(ctx: Ctx) {
+  const t = canvasTexture(ctx, 256, 192, (g) => {
+    g.fillStyle = "#7a1d22";
+    g.fillRect(0, 0, 256, 192);
+    g.strokeStyle = "#1f2f55";
+    g.lineWidth = 14;
+    g.strokeRect(7, 7, 242, 178);
+    g.strokeStyle = "#e0b45a";
+    g.lineWidth = 3;
+    g.strokeRect(18, 18, 220, 156);
+    for (let i = 0; i < 9; i++) {
+      for (let j = 0; j < 6; j++) {
+        if ((i + j) % 2) continue;
+        g.fillStyle = "rgba(224,180,90,0.5)";
+        g.beginPath();
+        g.moveTo(32 + i * 24, 30 + j * 24);
+        g.lineTo(40 + i * 24, 38 + j * 24);
+        g.lineTo(32 + i * 24, 46 + j * 24);
+        g.lineTo(24 + i * 24, 38 + j * 24);
+        g.fill();
+      }
+    }
+    g.fillStyle = "#1f2f55";
+    g.beginPath();
+    g.moveTo(128, 54);
+    g.lineTo(178, 96);
+    g.lineTo(128, 138);
+    g.lineTo(78, 96);
+    g.closePath();
+    g.fill();
+    g.fillStyle = "#e0b45a";
+    g.beginPath();
+    g.arc(128, 96, 16, 0, Math.PI * 2);
+    g.fill();
+  });
+  t.hasAlpha = false;
+  const m = lit(ctx, { rough: 1 });
+  m.albedoTexture = t;
+  return m;
+}
+
+/**
+ * Desk + computer (typing code on screen) + office chair, in the desk's own frame: desk centred on
+ * (x, z) with the screen towards local -z, the chair at local +z. Returns colliders (axis-aligned
+ * for yaw = 0 or π).
+ */
+export function buildDesk(ctx: Ctx, parent: import("@babylonjs/core").Node, x: number, y: number, z: number, yaw: number) {
+  const root = group(ctx, { parent, pos: [x, y, z], rot: [0, yaw, 0] });
+  const wood = lit(ctx, { color: "#6b4a30", rough: 0.55 });
+  const darkWood = lit(ctx, { color: "#3f2b1c", rough: 0.6 });
+  const metal = lit(ctx, { color: "#20242b", rough: 0.4, metal: 0.6 });
+  const plastic = lit(ctx, { color: "#15171b", rough: 0.55, metal: 0.1 });
+  const fabric = lit(ctx, { color: "#20242c", rough: 0.9 });
+  const screenTex = typingScreen(ctx);
+  // a normal-height desk (0.76 m)
+  const top = 0.76;
+  box(ctx, 1.8, 0.05, 0.8, { parent: root, pos: [0, top, 0], cast: true, receive: true, mat: wood });
+  for (const sx of [-0.86, 0.86]) box(ctx, 0.05, top, 0.75, { parent: root, pos: [sx, top / 2, 0], cast: true, mat: wood });
+  box(ctx, 0.45, top - 0.05, 0.7, { parent: root, pos: [0.6, (top - 0.05) / 2, 0], mat: darkWood }); // drawers
+  for (const dy of [0.15, 0.38, 0.6]) box(ctx, 0.12, 0.02, 0.02, { parent: root, pos: [0.6, dy, 0.36], mat: metal });
+  box(ctx, 0.95, 0.56, 0.05, { parent: root, pos: [0, top + 0.46, -0.22], cast: true, mat: metal });
+  plane(ctx, 0.89, 0.5, { parent: root, pos: [0, top + 0.46, -0.193], mat: unlit(ctx, { map: screenTex, opaque: true, fog: false, double: true }) });
+  box(ctx, 0.06, 0.18, 0.06, { parent: root, pos: [0, top + 0.1, -0.22], mat: metal });
+  box(ctx, 0.3, 0.02, 0.2, { parent: root, pos: [0, top + 0.02, -0.2], mat: metal });
+  box(ctx, 0.45, 0.02, 0.15, { parent: root, pos: [-0.05, top + 0.03, 0.1], mat: plastic }); // keyboard
+  box(ctx, 0.06, 0.02, 0.1, { parent: root, pos: [0.35, top + 0.03, 0.12], mat: plastic }); // mouse
+  instantiate(ctx, "mug.glb", root, { pos: [0.7, top + 0.034, 0.05], scale: 0.012 }).catch(() => {});
+  instantiate(ctx, "desk-lamp.glb", root, { pos: [-0.72, top, -0.15], rot: [0, 0.6, 0], scale: 0.8, background: true }).catch(() => {});
+  instantiate(ctx, "books.glb", root, { pos: [-0.55, top, 0.2], rot: [0, 0.2, 0], scale: 0.9, background: true }).catch(() => {});
+  // office chair
+  const c = group(ctx, { parent: root, pos: [0, 0, 0.85], rot: [0, Math.PI + 0.2, 0] });
+  for (let k = 0; k < 5; k++) {
+    const a = (k / 5) * Math.PI * 2;
+    const leg = box(ctx, 0.34, 0.03, 0.055, { parent: c, pos: [Math.cos(a) * 0.17, 0.075, Math.sin(a) * 0.17], mat: plastic });
+    setEuler(leg, 0, -a, 0);
+    cylinder(ctx, 0.03, 0.03, 0.03, 10, { parent: c, pos: [Math.cos(a) * 0.33, 0.035, Math.sin(a) * 0.33], mat: plastic });
+  }
+  cylinder(ctx, 0.032, 0.032, 0.32, 10, { parent: c, pos: [0, 0.25, 0], mat: metal });
+  box(ctx, 0.5, 0.08, 0.48, { parent: c, pos: [0, 0.44, 0], cast: true, mat: fabric });
+  const back = group(ctx, { parent: c, pos: [0, 0.8, -0.24], rot: [-0.12, 0, 0] });
+  box(ctx, 0.46, 0.52, 0.07, { parent: back, cast: true, mat: fabric });
+  box(ctx, 0.05, 0.3, 0.05, { parent: c, pos: [0, 0.56, -0.2], mat: plastic });
+  for (const sx of [-1, 1]) {
+    box(ctx, 0.04, 0.2, 0.04, { parent: c, pos: [sx * 0.26, 0.56, -0.02], mat: plastic });
+    box(ctx, 0.07, 0.035, 0.3, { parent: c, pos: [sx * 0.26, 0.67, 0.04], mat: plastic });
+  }
+  const s = Math.cos(yaw) >= 0 ? 1 : -1;
+  return [
+    { x, z, hx: 0.95, hz: 0.45 },
+    { x, z: z + s * 0.85, hx: 0.35, hz: 0.35 },
+  ];
 }
 
 export function buildRoom(ctx: Ctx, parent: import("@babylonjs/core").Node) {
   const root = group(ctx, { parent });
   const colliders: Collider[] = [];
   const anchors: Anchor[] = [];
-  const wall = lit(ctx, { color: WALL, rough: 0.9 });
+  // the living room: warm striped wallpaper, a dark-wood dado rail and a beamed ceiling
+  const wall = wallpaper(ctx, "stripes", 7, 1);
+  void WALL;
   const wood = lit(ctx, { color: "#6b4a30", rough: 0.55 });
   const darkWood = lit(ctx, { color: "#3f2b1c", rough: 0.6 });
   const metal = lit(ctx, { color: "#20242b", rough: 0.4, metal: 0.6 });
@@ -177,81 +275,48 @@ export function buildRoom(ctx: Ctx, parent: import("@babylonjs/core").Node) {
   box(ctx, 9.3, ROOM_H, T, { parent: root, pos: [-2.35, ROOM_H / 2, ROOM_HZ], receive: true, mat: wall });
   box(ctx, 3.3, ROOM_H, T, { parent: root, pos: [5.35, ROOM_H / 2, ROOM_HZ], receive: true, mat: wall });
   box(ctx, 1.4, ROOM_H - 2.4, T, { parent: root, pos: [3.0, 2.4 + (ROOM_H - 2.4) / 2, ROOM_HZ], mat: wall });
+  // dado rail and ceiling beams
+  for (const [w_, d_, x_, z_] of [[ROOM_HX * 2, 0.05, 0, -ROOM_HZ + 0.13], [0.05, ROOM_HZ * 2, -ROOM_HX + 0.13, 0], [0.05, ROOM_HZ * 2, ROOM_HX - 0.13, 0]] as [number, number, number, number][])
+    box(ctx, w_, 0.07, d_, { parent: root, pos: [x_, 1.0, z_], mat: darkWood });
+  for (let x = -5.25; x <= 5.25; x += 3.5) box(ctx, 0.24, 0.22, ROOM_HZ * 2, { parent: root, pos: [x, ROOM_H - 0.11, 0], mat: darkWood });
   // skirting
   box(ctx, ROOM_HX * 2, 0.12, 0.05, { parent: root, pos: [0, 0.06, ROOM_HZ - 0.12], mat: darkWood });
   box(ctx, 0.05, 0.12, ROOM_HZ * 2, { parent: root, pos: [-ROOM_HX + 0.12, 0.06, 0], mat: darkWood });
   box(ctx, 0.05, 0.12, ROOM_HZ * 2, { parent: root, pos: [ROOM_HX - 0.12, 0.06, 0], mat: darkWood });
 
-  // window: a real 3D skyline outside (not a painted backdrop) — distant sky
-  // plane behind a scatter of lit-window buildings at varying depth, so the
-  // view actually parallaxes as the player walks past the window.
-  const duskSky = canvasTexture(ctx, 8, 256, (g) => {
-    const grd = g.createLinearGradient(0, 0, 0, 256);
-    grd.addColorStop(0, "#1b2a55");
-    grd.addColorStop(0.6, "#e0805a");
-    grd.addColorStop(1, "#f4c27a");
-    g.fillStyle = grd;
-    g.fillRect(0, 0, 8, 256);
-  });
-  plane(ctx, 160, 70, { parent: root, pos: [1, 22, wz - 85], mat: unlit(ctx, { map: duskSky, opaque: true, fog: false, double: true }) });
-  const facadeHues = ["#232e4a", "#2b3958", "#332c48", "#213347"];
-  const facades = facadeHues.map((h) => unlit(ctx, { map: officeFacadeTexture(ctx, h), opaque: true, fog: false, double: true }));
-  for (let i = 0; i < 18; i++) {
-    const bw = 2.5 + hash(i, 21) * 3;
-    const bh = 4 + hash(i, 22) * 8;
-    const bd = 2.5 + hash(i, 23) * 3;
-    const bx = 1 + (hash(i, 24) - 0.5) * 70;
-    const bz = wz - 30 - hash(i, 25) * 55;
-    box(ctx, bw, bh, bd, { parent: root, pos: [bx, bh / 2, bz], mat: facades[i % facades.length] });
-  }
+  // window frame (the house's back wall has a matching opening: the view is the real garden)
   const frame = lit(ctx, { color: "#efefef", rough: 0.5 });
   box(ctx, 3.5, 0.08, 0.3, { parent: root, pos: [1, 0.95, wz + 0.02], mat: frame });
   box(ctx, 0.08, 1.75, 0.16, { parent: root, pos: [1, 1.78, wz], mat: frame });
   box(ctx, 3.4, 0.06, 0.16, { parent: root, pos: [1, 1.78, wz], mat: frame });
 
-  // ---- workstations: desk + computer + office chair facing it
-  const screenTex = typingScreen(ctx);
-  const dz = -4.1;
-  const plastic = lit(ctx, { color: "#15171b", rough: 0.55, metal: 0.1 });
-  const fabric = lit(ctx, { color: "#20242c", rough: 0.9 });
-  const officeChair = (x: number, z: number, yaw: number) => {
-    const c = group(ctx, { parent: root, pos: [x, 0, z], rot: [0, yaw, 0] });
-    for (let k = 0; k < 5; k++) {
-      const a = (k / 5) * Math.PI * 2;
-      const leg = box(ctx, 0.34, 0.03, 0.055, { parent: c, pos: [Math.cos(a) * 0.17, 0.075, Math.sin(a) * 0.17], mat: plastic });
-      setEuler(leg, 0, -a, 0);
-      cylinder(ctx, 0.03, 0.03, 0.03, 10, { parent: c, pos: [Math.cos(a) * 0.33, 0.035, Math.sin(a) * 0.33], mat: plastic });
+  // ---- a reading corner where the old desk stood (the computer is in the bedroom now)
+  instantiate(ctx, "armchair.glb", root, { pos: [-2.2, 0, -3.6], rot: [0, 0.35, 0], cast: true, background: true }).catch(() => {});
+  instantiate(ctx, "potted-plant-2.glb", root, { pos: [-0.9, 0, -4.3], scale: 1.2, background: true }).catch(() => {});
+  instantiate(ctx, "floor-vase.glb", root, { pos: [-3.6, 0, -4.5], scale: 1.3, background: true }).catch(() => {});
+  colliders.push({ x: -2.2, z: -3.6, hx: 0.5, hz: 0.5 }, { x: -0.9, z: -4.3, hx: 0.45, hz: 0.45 }, { x: -3.6, z: -4.5, hx: 0.25, hz: 0.25 });
+
+  // ---- a glass-fronted cupboard (javon) with the good china, against the back wall
+  const cx_ = 4.8;
+  const china = [lit(ctx, { color: "#f4f1ea", rough: 0.3 }), lit(ctx, { color: "#2f5d8a", rough: 0.3 })];
+  // open-fronted carcass: back, sides, top and a closed base
+  box(ctx, 2.4, 2.3, 0.05, { parent: root, pos: [cx_, 1.15, -ROOM_HZ + 0.15], cast: true, mat: darkWood });
+  for (const sx_ of [-1.18, 1.18]) box(ctx, 0.05, 2.3, 0.55, { parent: root, pos: [cx_ + sx_, 1.15, -ROOM_HZ + 0.4], cast: true, mat: darkWood });
+  box(ctx, 2.4, 0.08, 0.6, { parent: root, pos: [cx_, 2.3, -ROOM_HZ + 0.4], mat: darkWood });
+  box(ctx, 2.36, 0.85, 0.55, { parent: root, pos: [cx_, 0.43, -ROOM_HZ + 0.4], cast: true, mat: darkWood });
+  for (let s_ = 0; s_ < 3; s_++) {
+    box(ctx, 2.2, 0.04, 0.45, { parent: root, pos: [cx_, 1.1 + s_ * 0.42, -ROOM_HZ + 0.45], mat: wood });
+    for (let i = 0; i < 6; i++) {
+      const plate = cylinder(ctx, 0.13, 0.13, 0.02, 16, { parent: root, pos: [cx_ - 0.9 + i * 0.36, 1.27 + s_ * 0.42, -ROOM_HZ + 0.35], rot: [Math.PI / 2 - 0.25, 0, 0], mat: china[i % 2] });
+      plate.isPickable = false;
     }
-    cylinder(ctx, 0.032, 0.032, 0.38, 10, { parent: c, pos: [0, 0.28, 0], mat: metal });
-    box(ctx, 0.5, 0.08, 0.48, { parent: c, pos: [0, 0.5, 0], cast: true, mat: fabric });
-    box(ctx, 0.46, 0.05, 0.44, { parent: c, pos: [0, 0.555, -0.01], mat: fabric });
-    const back = group(ctx, { parent: c, pos: [0, 0.86, -0.24], rot: [-0.12, 0, 0] });
-    box(ctx, 0.46, 0.52, 0.07, { parent: back, cast: true, mat: fabric });
-    box(ctx, 0.3, 0.14, 0.06, { parent: back, pos: [0, 0.32, 0], mat: fabric });
-    box(ctx, 0.05, 0.3, 0.05, { parent: c, pos: [0, 0.62, -0.2], mat: plastic });
-    for (const sx of [-1, 1]) {
-      box(ctx, 0.04, 0.2, 0.04, { parent: c, pos: [sx * 0.26, 0.62, -0.02], mat: plastic });
-      box(ctx, 0.07, 0.035, 0.3, { parent: c, pos: [sx * 0.26, 0.73, 0.04], mat: plastic });
-    }
-    return c;
-  };
-  const workstation = (dx: number, chairYaw: number, withMug: boolean) => {
-    box(ctx, 2.4, 0.08, 1.1, { parent: root, pos: [dx, 1.0, dz], cast: true, receive: true, mat: wood });
-    for (const sx of [-1.1, 1.1]) box(ctx, 0.08, 1.0, 1.0, { parent: root, pos: [dx + sx, 0.5, dz], cast: true, mat: metal });
-    box(ctx, 2.2, 0.5, 0.05, { parent: root, pos: [dx, 0.7, dz - 0.45], mat: darkWood });
-    box(ctx, 1.25, 0.72, 0.06, { parent: root, pos: [dx, 1.75, dz - 0.2], cast: true, mat: metal });
-    plane(ctx, 1.17, 0.64, { parent: root, pos: [dx, 1.75, dz - 0.165], mat: unlit(ctx, { map: screenTex, opaque: true, fog: false, double: true }) });
-    box(ctx, 0.08, 0.32, 0.08, { parent: root, pos: [dx, 1.22, dz - 0.2], mat: metal });
-    box(ctx, 0.4, 0.03, 0.25, { parent: root, pos: [dx, 1.05, dz - 0.15], mat: metal });
-    box(ctx, 0.75, 0.03, 0.26, { parent: root, pos: [dx - 0.05, 1.05, dz + 0.25], mat: metal });
-    box(ctx, 0.07, 0.03, 0.11, { parent: root, pos: [dx + 0.55, 1.05, dz + 0.25], mat: metal });
-    officeChair(dx, dz + 1.05, Math.PI + chairYaw);
-    if (withMug) instantiate(ctx, "mug.glb", root, { pos: [dx + 0.95, 1.04 + 0.034, dz + 0.1], scale: 0.012 }).catch((e) => console.error("mug", e));
-    colliders.push({ x: dx, z: dz, hx: 1.3, hz: 0.65 }, { x: dx, z: dz + 1.05, hx: 0.4, hz: 0.4 });
-  };
-  workstation(-2.6, 0.25, true);
-  workstation(4.8, -0.35, false);
-  workstation(-5.6, 0.1, false);
+  }
+  box(ctx, 2.3, 1.3, 0.02, { parent: root, pos: [cx_, 1.55, -ROOM_HZ + 0.69], mat: lit(ctx, { color: "#cfe4ee", rough: 0.05, opacity: 0.25 }) });
+  colliders.push({ x: cx_, z: -ROOM_HZ + 0.4, hx: 1.25, hz: 0.35 });
+
+  // (the TV is opposite the sofa now — see TvCorner.ts)
+  instantiate(ctx, "potted-plant.glb", root, { pos: [-5.6, 0, -ROOM_HZ + 0.6], scale: 1.1, background: true }).catch(() => {});
+  colliders.push({ x: -5.6, z: -ROOM_HZ + 0.6, hx: 0.4, hz: 0.4 });
   // real lounge armchair as decoration in the corner
   instantiate(ctx, "chair.glb", root, { pos: [5.6, 0, 1.4], rot: [0, -Math.PI / 2 - 0.3, 0], scale: 1.45, cast: true }).catch((e) => console.error("chair", e));
   colliders.push({ x: 5.6, z: 1.4, hx: 0.5, hz: 0.5 });
@@ -275,9 +340,9 @@ export function buildRoom(ctx: Ctx, parent: import("@babylonjs/core").Node) {
   }
   colliders.push({ x: bx, z: -0.4, hx: 0.3, hz: 1.55 });
 
-  // ---- whiteboard on right wall (Tajriba)
-  box(ctx, 0.06, 1.6, 2.8, { parent: root, pos: [ROOM_HX - 0.13, 1.85, -1.2], mat: metal });
-  plane(ctx, 2.7, 1.5, { parent: root, pos: [ROOM_HX - 0.165, 1.85, -1.2], rot: [0, -Math.PI / 2, 0], mat: unlit(ctx, { map: board(ctx), opaque: true, fog: false, double: true }) });
+  // ---- a suzani (embroidered wall hanging) on the right wall
+  box(ctx, 0.04, 0.05, 2.9, { parent: root, pos: [ROOM_HX - 0.12, 2.65, -1.2], mat: darkWood });
+  plane(ctx, 2.7, 1.7, { parent: root, pos: [ROOM_HX - 0.14, 1.75, -1.2], rot: [0, -Math.PI / 2, 0], mat: unlit(ctx, { map: suzani(ctx), opaque: true, double: true }) });
 
   // ---- side table + phone (Bog'lanish)
   const sx = ROOM_HX - 0.7, sz = 3.4;
@@ -287,24 +352,26 @@ export function buildRoom(ctx: Ctx, parent: import("@babylonjs/core").Node) {
   box(ctx, 0.16, 0.02, 0.32, { parent: root, pos: [sx, 1.0, sz], rot: [0, 0.4, 0], mat: lit(ctx, { color: "#111", rough: 0.3, metal: 0.5 }) });
   colliders.push({ x: sx, z: sz, hx: 0.5, hz: 0.5 });
 
-  // ---- real sofa model + coffee table + rug
-  instantiate(ctx, "sofa.glb", root, { pos: [-ROOM_HX + 1.2, 0, 3.0], rot: [0, Math.PI / 2, 0], scale: 1.4, cast: true }).catch((e) => console.error("sofa", e));
-  colliders.push({ x: -ROOM_HX + 1.2, z: 3.0, hx: 0.75, hz: 1.7 });
-  box(ctx, 1.2, 0.05, 0.8, { parent: root, pos: [-3.7, 0.5, 3.0], cast: true, mat: wood });
-  for (const [ax, az] of [[-0.5, -0.3], [0.5, -0.3], [-0.5, 0.3], [0.5, 0.3]]) box(ctx, 0.05, 0.48, 0.05, { parent: root, pos: [-3.7 + ax, 0.24, 3.0 + az], mat: metal });
-  colliders.push({ x: -3.7, z: 3.0, hx: 0.65, hz: 0.45 });
-  box(ctx, 4.2, 0.02, 3.0, { parent: root, pos: [-2.4, 0.011, 2.2], mat: lit(ctx, { color: "#7a3b3b", rough: 1 }) });
+  // ---- the sitting area: the TV against the west wall (TvCorner.ts), the sofa facing it across
+  // a coffee table and a rug
+  const sofaX = -2.9, tvZ = 2.6;
+  instantiate(ctx, "sofa-modern.glb", root, { pos: [sofaX, 0, tvZ], rot: [0, -Math.PI / 2, 0], scale: 1, cast: true }).catch((e) => console.error("sofa", e));
+  instantiate(ctx, "pillows.glb", root, { pos: [sofaX + 0.05, 0.45, tvZ], rot: [0, -Math.PI / 2, 0], scale: 1, background: true }).catch(() => {});
+  colliders.push({ x: sofaX + 0.03, z: tvZ, hx: 0.36, hz: 0.82 });
+  instantiate(ctx, "coffee-table.glb", root, { pos: [-4.7, 0, tvZ], scale: 1.0, cast: true }).catch((e) => console.error("table", e));
+  colliders.push({ x: -4.7, z: tvZ, hx: 0.5, hz: 0.5 });
+  box(ctx, 4.4, 0.02, 3.0, { parent: root, pos: [-4.0, 0.011, tvZ], mat: gilam(ctx) });
 
   // ---- plants (real models) + vase
-  for (const [px, pz] of [[6.2, -4.1], [-6.1, 4.2], [5.8, 4.3]] as [number, number][]) {
+  for (const [px, pz] of [[6.2, -4.1], [-6.2, 4.4], [5.8, 4.3]] as [number, number][]) {
     instantiate(ctx, "plant.glb", root, { pos: [px, 0, pz], scale: 0.9, cast: true, background: true }).catch((e) => console.error("plant", e));
     colliders.push({ x: px, z: pz, hx: 0.32, hz: 0.32 });
   }
-  instantiate(ctx, "vase.glb", root, { pos: [-3.7, 0.525, 3.0], scale: 1.6 }).catch((e) => console.error("vase", e));
+  instantiate(ctx, "vase.glb", root, { pos: [-4.7, 0.49, 2.6], scale: 1.4 }).catch((e) => console.error("vase", e));
 
   // ---- lights (pendant lamp models)
   for (const [lx, lz] of [[-3.5, 0], [3.5, 0], [-2.6, -3], [3.5, 3]]) addPendant(ctx, root, lx, lz, ROOM_H, "#ffe6c0", 9, 12);
-  staticLight(ctx, root, [-1.7, 1.6, dz + 0.3], "#ffcf8a", 2.5, 5);
+  staticLight(ctx, root, [-2.2, 1.6, -3.2], "#ffcf8a", 2.5, 5);
 
   return { anchors, colliders, root };
 }

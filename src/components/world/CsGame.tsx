@@ -1,6 +1,7 @@
 "use client";
 
 import "@babylonjs/loaders/glTF";
+import "./assets"; // self-hosted Draco/meshopt decoders
 import { useEffect, useRef, useState } from "react";
 import {
   Color3,
