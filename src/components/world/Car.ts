@@ -12,7 +12,7 @@ import { Instancer, clamp, disc, group, lerp, points, setEuler, unlit, type Ctx 
 export const CAR_FILE = "race.glb";
 export const SCALE = 1.75; // → a 4.5 m race car
 export const WHEEL_R = 0.3 * SCALE;
-const WHEELBASE = 1.52 * SCALE;
+export const WHEELBASE = 1.52 * SCALE;
 
 const MAX_SPEED = 37; // m/s on the throttle alone (≈ 133 km/h)
 /**
@@ -75,6 +75,8 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
   let y = SURFACE;
   let travel = v.heading; // the direction the car actually moves in (≠ heading while sliding)
   let steer = 0;
+  /** the front wheels' angle as shown */
+  let wheelSteer = 0;
   let spin = 0;
   let pitch = 0;
   let roll = 0;
@@ -449,7 +451,11 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
     // ---- wheels: roll with the distance travelled, the front pair steers
     spin += (s * dt) / WHEEL_R;
     Quaternion.RotationAxisToRef(AX_X, spin, qRoll);
-    Quaternion.RotationAxisToRef(AX_Y, -steer, qSteer);
+    // (as you see them: the angle the physics steers is a few degrees at speed — you would never see
+    // it — so they show the steering input, turned in well, a little less the faster you go)
+    const shown = steerIn * (0.5 / (1 + Math.abs(s) / 50));
+    wheelSteer = lerp(wheelSteer, Math.abs(shown) > Math.abs(steer) ? shown : steer, 1 - Math.pow(0.0008, dt));
+    Quaternion.RotationAxisToRef(AX_Y, -wheelSteer, qSteer);
     for (const w of wheels) {
       const q = w.node.rotationQuaternion ?? (w.node.rotationQuaternion = new Quaternion());
       if (w.front) {

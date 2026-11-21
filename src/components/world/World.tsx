@@ -226,7 +226,7 @@ export default function World({ session, teleportRef, achievementRef, introRef, 
     buildCameraRig(ctx, { input, teleportRef, introRef });
     ctx.afterBuild.forEach((fn) => fn());
     // dev-only handle for poking at the world from the console / automated screenshots
-    if (process.env.NODE_ENV !== "production" || new URLSearchParams(location.search).has("debug")) (window as unknown as { __world?: unknown }).__world = { ctx, input, engine, loadContainer, TRACK, sampleAt, heightAt, trackS, loopPose, quality, gpu: gpuName(), play: playRef.current, session, drive: driveRef.current };
+    if (process.env.NODE_ENV !== "production" || new URLSearchParams(location.search).has("debug")) (window as unknown as { __world?: unknown }).__world = { ctx, input, engine, loadContainer, TRACK, sampleAt, heightAt, trackS, loopPose, quality, gpu: gpuName(), play: playRef.current, session, drive: driveRef.current, mode };
     car.ready.catch((e) => console.error("The car failed to load", e));
 
     // The start button waits until everything is loaded AND every shader is compiled — the

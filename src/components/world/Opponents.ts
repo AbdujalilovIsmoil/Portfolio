@@ -1,5 +1,5 @@
 import { Quaternion, Texture, TransformNode, Vector3, type Node, type PBRMaterial, type Scene } from "@babylonjs/core";
-import { AXLE, BODY_R, CAR_FILE, SCALE, WHEEL_R } from "./Car";
+import { AXLE, BODY_R, CAR_FILE, SCALE, WHEELBASE, WHEEL_R } from "./Car";
 import { instantiate } from "./assets";
 import { ROAD_HALF, SURFACE, TILE, TRACK, heightAt, loopPose } from "./Track";
 import { clamp, group, setEuler, type Ctx, type DynamicCollider } from "./core";
@@ -113,6 +113,9 @@ async function paintedTexture(scene: Scene, color: string): Promise<Texture | nu
 const LANES = [-4.6, 0, 4.6];
 const ACCEL = 12;
 const BRAKE = 24;
+// scratch for the wheels (nothing allocated per frame)
+const qRoll = new Quaternion(), qSteer = new Quaternion(), qTmp = new Quaternion();
+const AX_X = Vector3.Right(), AX_Y = Vector3.Up();
 
 /**
  * A rival's car: it drives the racing line on its own — as fast as the bends allow (times its
@@ -134,6 +137,8 @@ export class Rival {
   private readonly tilt: TransformNode;
   private wheels: { node: TransformNode; base: Quaternion; front: boolean }[] = [];
   private spin = 0;
+  /** the front wheels' steering angle (shown, a little more than the bend needs: you see it turn in) */
+  private steer = 0;
   private yaw = 0;
   private pitch = 0;
   readonly colliders: DynamicCollider[];
@@ -262,8 +267,15 @@ export class Rival {
       this.root.position.set(cx + Math.cos(h) * this.lat, y, cz - Math.sin(h) * this.lat);
       // turned a little into a lane change; nose up or down with the hill
       const latV = clamp(this.lane - this.lat, -3, 3) * (Math.abs(this.lane - this.lat) > 0.05 ? 1 : 0);
-      this.yaw += (h + Math.atan2(latV, Math.max(this.speed, 4)) - this.yaw) * Math.min(1, dt * 10 || 1);
+      const laneYaw = Math.atan2(latV, Math.max(this.speed, 4));
+      // (the shorter way round: where the road's heading wraps from +π to −π, straight on is straight on —
+      // the plain difference made the car spin round there)
+      this.yaw += wrap(h + laneYaw - this.yaw) * Math.min(1, dt * 10 || 1);
       this.yaw = h + wrap(this.yaw - h);
+      // the front wheels: into the bend (its curvature, as the wheelbase needs it) and the lane change
+      const bend = wrap(b.heading - a.heading) / span;
+      const wantSteer = clamp(-Math.atan(bend * WHEELBASE) * 2.5 - laneYaw * 1.5, -0.45, 0.45);
+      this.steer += (wantSteer - this.steer) * Math.min(1, dt * 8 || 1);
       const slope = Math.atan((heightAt(s + 1.5) - heightAt(s - 1.5)) / 3);
       this.pitch += (-slope - this.pitch) * Math.min(1, dt * 8 || 1);
       setEuler(this.root, 0, this.yaw, 0);
@@ -278,9 +290,16 @@ export class Rival {
       c.x = this.x + Math.sin(this.heading) * AXLE * k;
       c.z = this.z + Math.cos(this.heading) * AXLE * k;
     }
-    // wheels roll with the distance
+    // wheels roll with the distance; the front pair steers
     this.spin += (this.speed * dt) / WHEEL_R;
-    const roll = Quaternion.RotationAxis(Vector3.Right(), this.spin);
-    for (const w of this.wheels) w.node.rotationQuaternion = w.base.multiply(roll);
+    Quaternion.RotationAxisToRef(AX_X, this.spin, qRoll);
+    Quaternion.RotationAxisToRef(AX_Y, -this.steer, qSteer);
+    for (const w of this.wheels) {
+      const q = w.node.rotationQuaternion ?? (w.node.rotationQuaternion = new Quaternion());
+      if (w.front) {
+        w.base.multiplyToRef(qSteer, qTmp);
+        qTmp.multiplyToRef(qRoll, q);
+      } else w.base.multiplyToRef(qRoll, q);
+    }
   }
 }
