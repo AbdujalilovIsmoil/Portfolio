@@ -1,5 +1,5 @@
 import { Quaternion, Texture, TransformNode, Vector3, type Node, type PBRMaterial, type Scene } from "@babylonjs/core";
-import { AXLE, BODY_R, CAR_FILE, SCALE, WHEELBASE, WHEEL_R } from "./Car";
+import { CAR_FILE, CAR_HALF_L, CAR_HALF_W, SCALE, WHEELBASE, WHEEL_R } from "./Car";
 import { instantiate } from "./assets";
 import { ROAD_HALF, SURFACE, TILE, TRACK, heightAt, loopPose } from "./Track";
 import { clamp, group, setEuler, type Ctx, type DynamicCollider } from "./core";
@@ -120,7 +120,8 @@ const AX_X = Vector3.Right(), AX_Y = Vector3.Up();
 /**
  * A rival's car: it drives the racing line on its own — as fast as the bends allow (times its
  * `skill`), braking in time, keeping to a lane and moving over to pass — up the hills and round the
- * loop like you. You can bump into it (it is solid); it is a little slowed when you do.
+ * loop like you. It is solid and as heavy as your car: bump it and the two of you trade speed — run
+ * into its back and it is shoved on, lean on its side and it is pushed off its line (then steers back).
  */
 export class Rival {
   /** metres driven from the start of the lap (it keeps counting past each lap) */
@@ -141,6 +142,12 @@ export class Rival {
   private steer = 0;
   private yaw = 0;
   private pitch = 0;
+  /** sideways speed from a knock (m/s, across the road), dying away */
+  private knock = 0;
+  /** how fast it is moving across the road now (lane change + knock) */
+  private latV = 0;
+  /** knocked off its line: for this long it holds where it was put (doesn't steer back into you) */
+  private hold = 0;
   readonly colliders: DynamicCollider[];
   readonly ready: Promise<unknown>;
   /** where it is (for the minimap and the others) */
@@ -176,18 +183,51 @@ export class Rival {
           if (mat && "albedoTexture" in mat) mat.albedoTexture = tex;
         }
     });
-    // two circles, over the axles (as the player's car)
-    this.colliders = [1, -1].map((k) => ({
-      x: 0,
-      z: 0,
-      r: BODY_R,
-      solid: true,
-      hit: (speed: number) => {
-        if (speed > 2) this.speed *= 0.97;
+    // its body: a box the size of the car (as the player's), turned with it
+    this.colliders = [
+      {
+        x: 0,
+        z: 0,
+        r: CAR_HALF_L + 0.2,
+        solid: true,
+        vx: 0,
+        vz: 0,
+        box: { hw: CAR_HALF_W, hl: CAR_HALF_L, h: 0 },
+        push: (dvx: number, dvz: number, ox: number, oz: number) => this.shove(dvx, dvz, ox, oz),
       },
-      k,
-    }));
+    ];
     this.place(0);
+  }
+
+  /**
+   * Hit by the player's car: `dv` the change to its velocity, `o` how far it is pushed (world x/z).
+   * Along the road it goes into its speed and distance; across, into a knock it steers out of.
+   */
+  shove(dvx: number, dvz: number, ox: number, oz: number) {
+    const fx = Math.sin(this.heading), fz = Math.cos(this.heading);
+    const across = dvx * fz - dvz * fx;
+    this.speed = Math.max(0, this.speed + dvx * fx + dvz * fz);
+    this.knock = clamp(this.knock + across, -12, 12);
+    this.latV += across;
+    this.d += ox * fx + oz * fz;
+    this.lat = clamp(this.lat + ox * fz - oz * fx, -(ROAD_HALF * TILE - 1.4), ROAD_HALF * TILE - 1.4);
+    // pushed sideways: it takes the new line for a moment, as a driver would, rather than lean back on you
+    if (Math.abs(across) > 0.2 || Math.abs(ox * fz - oz * fx) > 0.01) {
+      this.lane = this.lat;
+      this.hold = 1.2;
+    }
+    // at once: the player's other end may touch it in the same frame, and must see it already moving
+    this.velocity();
+  }
+
+  /** its velocity (for judging a hit), onto its colliders: along its nose, plus across the road */
+  private velocity() {
+    const vx = Math.sin(this.heading) * this.speed + Math.cos(this.heading) * this.latV;
+    const vz = Math.cos(this.heading) * this.speed - Math.sin(this.heading) * this.latV;
+    for (const c of this.colliders) {
+      c.vx = vx;
+      c.vz = vz;
+    }
   }
 
   /** where it is along the lap */
@@ -206,22 +246,47 @@ export class Rival {
       let target = this.profile[i] * this.skill * pace;
       if (onLoopClimb(this.s)) target = Math.max(target, 17);
       // someone ahead in our lane? pass them on a free lane, else sit behind
-      let blocked: { d: number; speed: number } | null = null;
+      // (looking further ahead the faster it goes — and as far as it takes to brake down to a slower
+      // car's speed: a car stopped on the road is seen in time)
+      const look = (o: { speed: number }) => 14 + this.speed * 0.4 + Math.max(0, this.speed * this.speed - o.speed * o.speed) / (2 * BRAKE);
+      /** is that line clear of everyone near and ahead of us? */
+      const clear = (l: number) => others.every((o) => Math.abs(o.lat - l) > 2.8 || o.d - this.d < -9 || o.d - this.d > look(o));
+      let blocked: { d: number; lat: number; speed: number } | null = null;
       for (const o of others) {
         const gap = o.d - this.d;
-        // (looking further ahead the faster it goes: time to move over)
-        if (gap > 0 && gap < 14 + this.speed * 0.4 && Math.abs(o.lat - this.lane) < 2.6 && (!blocked || gap < blocked.d - this.d)) blocked = o;
+        // in the lane it is going for, or on the line it is on now (moving over, it is still there)
+        const inWay = Math.abs(o.lat - this.lane) < 2.7 || Math.abs(o.lat - this.lat) < 2.7;
+        if (gap > 0 && gap < look(o) && inWay && (!blocked || gap < blocked.d - this.d)) blocked = o;
       }
-      if (blocked && blocked.speed < target) {
-        const free = LANES.find((l) => l !== this.lane && others.every((o) => Math.abs(o.d - this.d) > 9 || Math.abs(o.lat - l) > 2.8));
-        if (free !== undefined && !onLoopClimb(this.s)) this.lane = free;
-        else target = Math.min(target, blocked.speed - 0.5);
+      // back from a knock: to the nearest lane that is clear (else stay on this line)
+      if (this.hold > 0 && (this.hold -= dt) <= 0) {
+        const near = [...LANES].sort((a, b) => Math.abs(a - this.lat) - Math.abs(b - this.lat));
+        const ok = near.find(clear);
+        if (ok !== undefined) this.lane = ok;
+        else this.hold = 0.3;
+      }
+      if (this.hold <= 0 && blocked && blocked.speed < target) {
+        if (Math.abs(blocked.lat - this.lane) < 2.7) {
+          // it's in our lane: over to a clear one, else sit behind it
+          const free = LANES.find((l) => l !== this.lane && clear(l));
+          if (free !== undefined && !onLoopClimb(this.s)) this.lane = free;
+          else target = Math.min(target, blocked.speed - 0.5);
+        } else {
+          // already moving out of its way: slow enough to be past it before we get there
+          const tClear = Math.abs(this.lane - this.lat) / 4 + 0.3;
+          target = Math.min(target, blocked.speed + Math.max(0, blocked.d - this.d - 6) / tClear);
+        }
       }
       this.speed = this.speed < target ? Math.min(target, this.speed + ACCEL * dt) : Math.max(target, this.speed - BRAKE * dt);
       this.d += this.speed * dt;
-      // over to the lane, smoothly (not on the loop)
+      // over to the lane, smoothly (not on the loop); knocked sideways, it slides and then steers back
+      const lat0 = this.lat;
       if (!onLoopClimb(this.s)) this.lat += clamp(this.lane - this.lat, -4 * dt, 4 * dt);
+      if (this.hold > 0) this.lane = clamp(this.lane + this.knock * dt, -(ROAD_HALF * TILE - 1.4), ROAD_HALF * TILE - 1.4);
+      this.lat += this.knock * dt;
+      this.knock *= Math.exp(-4 * dt);
       this.lat = clamp(this.lat, -(ROAD_HALF * TILE - 1.4), ROAD_HALF * TILE - 1.4);
+      this.latV = dt > 0 ? (this.lat - lat0) / dt : 0;
       // laps (the line is at startS)
       const laps = Math.floor((this.d - TRACK.startS) / TRACK.length);
       if (laps > this.lastLapCount) {
@@ -286,10 +351,11 @@ export class Rival {
     this.y = this.root.position.y;
     this.z = this.root.position.z;
     for (const c of this.colliders) {
-      const k = (c as DynamicCollider & { k: number }).k;
-      c.x = this.x + Math.sin(this.heading) * AXLE * k;
-      c.z = this.z + Math.cos(this.heading) * AXLE * k;
+      c.x = this.x;
+      c.z = this.z;
+      c.box!.h = this.heading;
     }
+    this.velocity();
     // wheels roll with the distance; the front pair steers
     this.spin += (this.speed * dt) / WHEEL_R;
     Quaternion.RotationAxisToRef(AX_X, this.spin, qRoll);

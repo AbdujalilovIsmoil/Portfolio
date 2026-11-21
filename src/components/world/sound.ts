@@ -232,3 +232,71 @@ export function playPickup(pitch = 1) {
     o.stop(t + 0.3);
   });
 }
+
+/**
+ * A shell bursting `dist` metres away: a low, soft thump (no hiss), arriving after the flash —
+ * sound is slower than light.
+ */
+export function playFireworkBoom(dist = 60) {
+  const ac = peekCtx();
+  if (!ac) return;
+  const t = ac.currentTime + dist / 343;
+  const vol = clampN(0.4 - dist / 500, 0.1, 0.32);
+  const o = ac.createOscillator();
+  o.type = "sine";
+  o.frequency.setValueAtTime(85, t);
+  o.frequency.exponentialRampToValueAtTime(34, t + 0.5);
+  const lp = ac.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = 220;
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.65);
+  o.connect(lp).connect(g).connect(ac.destination);
+  o.start(t);
+  o.stop(t + 0.7);
+}
+
+/** A victory fanfare: a short brassy rising call and a held major chord. */
+export function playFanfare() {
+  const ac = peekCtx();
+  if (!ac) return;
+  const now = ac.currentTime + 0.05;
+  const out = ac.createGain();
+  out.gain.value = 0.11;
+  const lp = ac.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = 2600;
+  lp.Q.value = 0.7;
+  lp.connect(out).connect(ac.destination);
+  // (C major: G4 C5 E5 — G5 — then C5 E5 G5 C6 together)
+  const notes: [number[], number, number][] = [
+    [[392], 0, 0.16],
+    [[523], 0.17, 0.16],
+    [[659], 0.34, 0.16],
+    [[784], 0.51, 0.34],
+    [[659], 0.88, 0.14],
+    [[784], 1.03, 0.14],
+    [[523, 659, 784, 1047], 1.2, 1.6],
+  ];
+  for (const [fs, at, len] of notes)
+    for (const f of fs)
+      for (const det of [-6, 6]) {
+        const o = ac.createOscillator();
+        o.type = "sawtooth";
+        o.frequency.value = f;
+        o.detune.value = det;
+        const g = ac.createGain();
+        const t = now + at;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.5 / fs.length, t + 0.03);
+        g.gain.setValueAtTime(0.45 / fs.length, t + len * 0.7);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+        o.connect(g).connect(lp);
+        o.start(t);
+        o.stop(t + len + 0.02);
+      }
+}
+
+const clampN = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));

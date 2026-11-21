@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { WorldInputProvider, useWorldInput } from "./WorldInputContext";
 import WorldCanvas from "./WorldCanvas";
-import Hud from "./Hud";
 import Minimap from "./Minimap";
 import MobileControls from "./MobileControls";
 import GameMenu, { type MenuScreen } from "./GameMenu";
@@ -152,7 +151,6 @@ function Game() {
 
   return (
     <>
-      <Hud cards={session.mode === "free"} />
       <WorldCanvas key={session.key} session={session} teleportRef={teleportRef} achievementRef={achievementRef} introRef={introRef} exhibitRef={exhibitRef} driveRef={driveRef} playRef={playRef} pauseRef={pauseRef} />
       {!menu.open && <Minimap driveRef={driveRef} label={label} color={color} />}
       <MobileControls action={session.mode === "free"} />
@@ -168,6 +166,7 @@ function Game() {
         <PlayHud
           playRef={playRef}
           missionId={session.mission}
+          trackName={TRACKS[session.track].name}
           onAgain={again}
           onNext={nextMission ? () => pick("mission", nextMission.track, nextMission.id) : null}
           onMenu={() => setMenu({ open: true, screen: "missions" })}

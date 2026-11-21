@@ -2,16 +2,17 @@ import type { Node } from "@babylonjs/core";
 import type { MutableRefObject } from "react";
 import type { DriveSignal } from "./driveSignal";
 import { RACE_LAPS, RIVALS } from "./game";
+import { buildCelebration } from "./Celebration";
 import { Countdown } from "./countdown";
 import type { IntroSignal } from "./introSignal";
 import { LapClock } from "./laps";
-import { cornerSpeed } from "./Car";
+import { CAR_HALF_L, CAR_HALF_W, cornerSpeed } from "./Car";
 import { Rival, speedProfile } from "./Opponents";
 import type { PlaySignal } from "./raceSignal";
 import { saveRace } from "./progress";
 import { playChime } from "./sound";
 import { TRACK, lateralOf, sampleIndexAt } from "./Track";
-import { group, type Ctx } from "./core";
+import { boxHit, group, type Ctx } from "./core";
 
 export interface RaceDeps {
   playRef: MutableRefObject<PlaySignal>;
@@ -45,6 +46,7 @@ export function buildRace(ctx: Ctx, parent: Node, deps: RaceDeps, o: { laps?: nu
   ];
   const rivals = who.map((r, i) => new Rival(ctx, root, r.name, r.color, grid[i % grid.length][0] - Math.floor(i / grid.length) * 12, grid[i % grid.length][1], skills[i % skills.length], profile));
   for (const r of rivals) ctx.dynamic.push(...r.colliders);
+  const celebration = buildCelebration(ctx);
 
   Object.assign(play, { kind: "race", state: "intro", count: 3, time: 0, lap: 0, laps, position: rivals.length + 1, cars: rivals.length + 1, bestLap: null, title: "", objective: "", progress: 0, total: laps, timeLeft: null, status: "", message: "", results: [] });
   const countdown = new Countdown(ctx, introRef, play);
@@ -74,6 +76,34 @@ export function buildRace(ctx: Ctx, parent: Node, deps: RaceDeps, o: { laps?: nu
       r.update(dt, going, others, pace, raceTime);
       if (r.finished === null && r.progress >= laps * L) r.finished = raceTime;
     }
+    // the rivals against each other: bodies that meet are pushed apart and trade speed (never through)
+    for (let i = 0; i < rivals.length; i++)
+      for (let j = i + 1; j < rivals.length; j++) {
+        const a = rivals[i].colliders[0], b = rivals[j].colliders[0];
+        if (Math.hypot(a.x - b.x, a.z - b.z) > a.r + b.r) continue;
+        const hit = boxHit(a.x, a.z, a.box!.h, a.box!.hw, a.box!.hl, b.x, b.z, b.box!.h, b.box!.hw, b.box!.hl);
+        if (!hit) continue;
+        const { nx, nz, depth } = hit;
+        const closing = -((a.vx! - b.vx!) * nx + (a.vz! - b.vz!) * nz);
+        const J = closing > 0 ? (closing * 1.3) / 2 : 0;
+        rivals[i].shove(nx * J, nz * J, (nx * depth) / 2, (nz * depth) / 2);
+        rivals[j].shove(-nx * J, -nz * J, (-nx * depth) / 2, (-nz * depth) / 2);
+      }
+    // and against you, now that they have moved (your car checked them before they did): a rival that
+    // has come into you is put back out at once, and the two of you trade speed as equal masses
+    if (v.loop < 0)
+      for (const r of rivals) {
+        const c = r.colliders[0];
+        if (Math.hypot(c.x - v.x, c.z - v.z) > c.r + CAR_HALF_L + 0.5) continue;
+        const hit = boxHit(c.x, c.z, c.box!.h, c.box!.hw, c.box!.hl, v.x, v.z, v.heading, CAR_HALF_W, CAR_HALF_L);
+        if (!hit) continue;
+        const { nx, nz, depth } = hit; // (from you towards it)
+        const fx = Math.sin(v.heading), fz = Math.cos(v.heading);
+        const closing = -((c.vx! - fx * v.speed) * nx + (c.vz! - fz * v.speed) * nz);
+        const J = closing > 0 ? (closing * 1.3) / 2 : 0;
+        r.shove(nx * J, nz * J, nx * depth, nz * depth);
+        if (J > 0) v.speed -= (nx * fx + nz * fz) * J;
+      }
     markers.forEach((m, i) => {
       m.x = rivals[i].x;
       m.z = rivals[i].z;
@@ -98,6 +128,10 @@ export function buildRace(ctx: Ctx, parent: Node, deps: RaceDeps, o: { laps?: nu
       // the ones still out there: when they would get in at their pace
       play.results = order.map((x) => ({ name: x.name, color: x.color, you: x.you, best: x.best, time: x.time ?? raceTime + (laps * L - x.p) / Math.max(20, x.p / Math.max(1, raceTime)) }));
       play.state = play.position === 1 ? "won" : "lost";
+      if (play.state === "won") {
+        v.celebrate = true;
+        celebration.start();
+      }
       if (o.track) saveRace(o.track, finishedAt, play.state === "won");
     }
   });

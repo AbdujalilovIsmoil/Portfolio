@@ -21,6 +21,7 @@ import { buildMission } from "./Missions";
 import { buildRace } from "./Race";
 import { buildRaceInfo } from "./RaceInfo";
 import { buildRaceTrack } from "./RaceTrack";
+import { buildUnderworld } from "./Underworld";
 import { TRACK, boostPad, heightAt, loopPose, sampleAt, setLayout, startPose, trackS } from "./Track";
 import { getZones } from "./Zones";
 import { TRACKS, missionById, type Session } from "./game";
@@ -148,7 +149,7 @@ export default function World({ session, teleportRef, achievementRef, introRef, 
       shadow,
       player: new Vector3(SPAWN.x, 0, SPAWN.z),
       overlay,
-      vehicle: { driving: true, x: SPAWN.x, z: SPAWN.z, heading: SPAWN.heading, speed: 0, slope: 0, s: 0, loop: -1, frozen: false, wallHits: 0, slide: 0, exitAt: null },
+      vehicle: { driving: true, x: SPAWN.x, z: SPAWN.z, heading: SPAWN.heading, speed: 0, slope: 0, s: 0, loop: -1, frozen: false, celebrate: false, wallHits: 0, slide: 0, exitAt: null },
       dynamic: [],
       boostPads: boostPad() ? [boostPad()!] : [],
       paused: false,
@@ -212,6 +213,7 @@ export default function World({ session, teleportRef, achievementRef, introRef, 
     // free drive: the portfolio's billboards round the Grand Circuit; races and missions: none
     const boards = session.mode === "free" ? getZones().map((z) => z.board) : [];
     const track = buildRaceTrack(ctx, root, { boards });
+    buildUnderworld(ctx, root);
     driveRef.current.markers = [];
     Object.assign(playRef.current, { kind: "", state: "intro", results: [] });
     exhibitRef.current.open = false;
@@ -261,7 +263,9 @@ export default function World({ session, teleportRef, achievementRef, introRef, 
       if (document.hidden) return;
       cooldown -= dt;
       const fps = engine.getFps();
-      slow = fps < 45 ? slow + dt : 0;
+      // (not while the fireworks go up for a win: a burst of a few seconds must not leave the
+      // picture soft for the rest of the visit — the result screen is up anyway)
+      slow = fps < 45 && !ctx.vehicle.celebrate ? slow + dt : 0;
       fast = fps > 58 ? fast + dt : 0;
       if (cooldown > 0) return;
       let next = scale;

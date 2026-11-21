@@ -46,8 +46,78 @@ export function rampProfile(t: number) {
  * · R2/R3 L2/L3 corners of radius 1.5 / 2.5 tiles · UP/DN smooth ramps (2 tiles, ½ tile of climb)
  * · BR a bridge tile on the hill top · HR/HL hairpins (U-turns two tiles over) · LOOP the
  * loop-the-loop (2 tiles on, and it comes out one tile to the left of where it went in).
+ * A corner or a hairpin up on a hill (between an UP and a DN) stands on a concrete deck the size of
+ * its tile: bends at the top, with a drop beside them.
+ * Underground, straight on: SUB dives down an open cutting into a glass tunnel along the bottom of an
+ * aquarium (a pool of sea water, fish and all) and climbs out again (11 tiles); TUN goes down into a
+ * covered concrete tunnel under the lawn, lit by its lamps, and back up (10 tiles).
  */
 export const LAYOUT = "S S S GRID START S S S R3 S UP BR BR DN S R2 S S S HL S S S HR S S S L2 R2 R2 L2 S S S R2 S S UP BR BR DN S LOOP S R3 S".split(" ");
+
+// ------------------------------------------------------------------ underground
+
+/** The underground pieces, in tiles: how long the way down is, the bottom, the way up — and how deep the bottom is. */
+export const UNDER = {
+  SUB: { down: 3, flat: 5, up: 3, depth: 0.7 },
+  TUN: { down: 3, flat: 4, up: 3, depth: 0.45 },
+} as const;
+export type UnderCmd = keyof typeof UNDER;
+export const isUnder = (cmd: string): cmd is UnderCmd => cmd === "SUB" || cmd === "TUN";
+
+/** The aquarium's pool: half its width (m); the cuttings down to the tunnels: half theirs; the glass tube's radius. */
+export const PIT_HALF = 30;
+export const TRENCH_HALF = 11;
+export const TUBE_R = 10.6;
+
+/**
+ * Where the lawn is dug away for the underground pieces (axis-aligned rectangles x0, x1, z0, z1 —
+ * the pieces run along x or z): each cutting, and the aquarium's pool. A covered tunnel has lawn on top.
+ */
+export function underHoles(): [number, number, number, number][] {
+  const out: [number, number, number, number][] = [];
+  for (const u of TRACK.unders) {
+    const P = UNDER[u.cmd];
+    const rect = (a0: number, a1: number, half: number) => {
+      const pts = [
+        [a0, -half],
+        [a1, -half],
+        [a0, half],
+        [a1, half],
+      ].map(([a, l]) => [u.x + u.fx * a + u.fz * l, u.z + u.fz * a - u.fx * l]);
+      out.push([Math.min(...pts.map((q) => q[0])), Math.max(...pts.map((q) => q[0])), Math.min(...pts.map((q) => q[1])), Math.max(...pts.map((q) => q[1]))]);
+    };
+    const A1 = P.down * TILE, A2 = (P.down + P.flat) * TILE;
+    if (u.cmd === "SUB") {
+      rect(0, u.length, TRENCH_HALF);
+      rect(A1, A2, PIT_HALF);
+    } else {
+      rect(0, A1, TRENCH_HALF);
+      rect(A2, u.length, TRENCH_HALF);
+    }
+  }
+  return out;
+}
+
+/** Is (x, z) over an underground piece's dig (or its covered tunnel), `margin` metres round it included? */
+export function overUnder(x: number, z: number, margin = 0) {
+  for (const u of TRACK.unders) {
+    const P = UNDER[u.cmd];
+    const dx = x - u.x, dz = z - u.z;
+    const a = dx * u.fx + dz * u.fz, l = Math.abs(dx * u.fz - dz * u.fx);
+    if (a < -margin || a > u.length + margin) continue;
+    const pit = u.cmd === "SUB" && a > P.down * TILE - margin && a < (P.down + P.flat) * TILE + margin;
+    if (l < (pit ? PIT_HALF : TRENCH_HALF) + margin) return true;
+  }
+  return false;
+}
+
+/** How far below where it started the road is (tiles, ≤ 0), u tiles along an underground piece: easing down, level, easing up. */
+export function underProfile(cmd: UnderCmd, u: number) {
+  const P = UNDER[cmd];
+  if (u <= P.down) return -P.depth * rampProfile(u / P.down);
+  if (u <= P.down + P.flat) return -P.depth;
+  return -P.depth * (1 - rampProfile((u - P.down - P.flat) / P.up));
+}
 
 // ------------------------------------------------------------------ the loop (its shape)
 
@@ -113,6 +183,10 @@ interface Raw {
   elevated: boolean;
   /** the loop's way in, its heading and its left (tile units) */
   loop?: { entry: V; h: V; left: V; level: number };
+  /** up on a hill: the tile's footprint (its four corners, tile units), the deck it stands on */
+  deck?: V[];
+  /** underground: where it starts and the way it runs (tile units) */
+  under?: { entry: V; h: V };
 }
 
 /** Points evenly spaced along a parametric path (by 3D arc length); returns that length. */
@@ -145,6 +219,7 @@ function lay(cmds: string[]): Raw[] {
    */
   const at = (file: string, entry: V, yaw: number, base: number, centre = 0.5) => ({ file, origin: add(entry, rot([centre, 0], yaw)), yaw, base });
   for (const cmd of cmds) {
+    const p0 = p, h0 = h;
     const pts: [number, number, number][] = [];
     const N = 24;
     const line = (len: number, dy: number) => {
@@ -193,6 +268,20 @@ function lay(cmds: string[]): Raw[] {
         line(len, 0);
         p = add(p, mul(h, len));
         length = len;
+        break;
+      }
+      case "SUB":
+      case "TUN": {
+        // our own road (Underworld.ts builds it), straight on: down, along the bottom, up again
+        const P = UNDER[cmd];
+        const n = P.down + P.flat + P.up;
+        const M = n * 12;
+        for (let k = 0; k <= M; k++) {
+          const u = (k / M) * n;
+          pts.push([p[0] + h[0] * u, p[1] + h[1] * u, level + underProfile(cmd, u)]);
+        }
+        p = add(p, mul(h, n));
+        length = n;
         break;
       }
       case "BR":
@@ -268,7 +357,16 @@ function lay(cmds: string[]): Raw[] {
       default:
         throw new Error(`unknown track piece ${cmd}`);
     }
-    out.push({ cmd, models, pts, length, elevated, loop });
+    // a bend up on a hill: its tile's square, to stand it on (forward 0…f, out to the side it turns −½…w)
+    let deck: V[] | undefined;
+    if (level > 1e-6 && /^(R|L|H)/.test(cmd)) {
+      const [f, w] = cmd[0] === "H" ? [1.5, 2.5] : cmd.endsWith("2") ? [2, 1.5] : [3, 2.5];
+      const side = cmd === "HL" || cmd[0] === "L" ? leftOf(h0) : rightOf(h0);
+      const at2 = (a: number, b: number) => add(add(p0, mul(h0, a)), mul(side, b));
+      deck = [at2(0, -0.5), at2(f, -0.5), at2(f, w), at2(0, w)];
+      elevated = true;
+    }
+    out.push({ cmd, models, pts, length, elevated, loop, deck, under: isUnder(cmd) ? { entry: p0, h: h0 } : undefined });
   }
   return out;
 }
@@ -306,6 +404,10 @@ export interface Track {
   bounds: { x0: number; x1: number; z0: number; z1: number };
   /** where the turtle ended up (tiles, before centring) — (0, 0) heading +z for a closed lap */
   end: { p: V; h: V; level: number };
+  /** the concrete decks under the bends up on the hills: four corners (world x, z) and the height of their top (m) */
+  decks: { pts: [number, number][]; y: number }[];
+  /** the underground pieces: where each starts (along the lap and in the world), the way it runs (a unit axis), its ground level (m) */
+  unders: { cmd: UnderCmd; s0: number; length: number; x: number; z: number; fx: number; fz: number; y0: number }[];
 }
 
 export function buildTrack(cmds: string[] = LAYOUT): Track {
@@ -332,6 +434,8 @@ export function buildTrack(cmds: string[] = LAYOUT): Track {
   const Z = (z: number) => (z - cz) * TILE;
 
   const models: Placement[] = [];
+  const decks: Track["decks"] = [];
+  const unders: Track["unders"] = [];
   const samples: Sample[] = [];
   const pieces: Track["pieces"] = [];
   let loop: LoopInfo | null = null;
@@ -340,6 +444,8 @@ export function buildTrack(cmds: string[] = LAYOUT): Track {
   let y0 = 0;
   for (const r of raw) {
     for (const m of r.models) models.push({ file: m.file, x: W(m.origin[0]), y: m.base * TILE, z: Z(m.origin[1]), yaw: m.yaw });
+    if (r.under && isUnder(r.cmd)) unders.push({ cmd: r.cmd, s0: s, length: r.length * TILE, x: W(r.under.entry[0]), z: Z(r.under.entry[1]), fx: r.under.h[0], fz: r.under.h[1], y0 });
+    if (r.deck) decks.push({ pts: r.deck.map((q) => [W(q[0]), Z(q[1])] as [number, number]), y: r.pts[0][2] * TILE });
     pieces.push({ cmd: r.cmd, s0: s, length: r.length * TILE, elevated: r.elevated, y0 });
     if (r.cmd === "UP") y0 += RISE * TILE;
     if (r.cmd === "DN") y0 -= RISE * TILE;
@@ -392,6 +498,8 @@ export function buildTrack(cmds: string[] = LAYOUT): Track {
     startS,
     bounds: { x0: Math.min(...xs) - TILE, x1: Math.max(...xs) + TILE, z0: Math.min(...zs) - TILE, z1: Math.max(...zs) + TILE },
     end: { p, h, level },
+    decks,
+    unders,
   };
 }
 
@@ -524,6 +632,7 @@ export function heightAt(s: number): number {
   if (p.cmd === "LOOP") return loopPose(ss - p.s0).pos[1];
   if (p.cmd === "UP") return p.y0 + RISE * TILE * rampProfile(t);
   if (p.cmd === "DN") return p.y0 - RISE * TILE * rampProfile(t); // the ramp turned round (measured: 1 − the way up)
+  if (isUnder(p.cmd)) return p.y0 + underProfile(p.cmd, (t * p.length) / TILE) * TILE;
   return p.y0;
 }
 
@@ -541,7 +650,24 @@ export function groundAt(x: number, z: number, hint = -1): { y: number; i: numbe
   const d = L ? t.s - L.s0 : -1;
   if (L && d > L.climbIn && d < L.climbOut) return { y: 0, i: t.i };
   const lat = Math.abs(lateralOf(x, z, t.i));
-  return { y: lat < TILE * 0.5 + 0.5 ? heightAt(t.s) + SURFACE : 0, i: t.i };
+  if (lat < TILE * 0.5 + 0.5) return { y: heightAt(t.s) + SURFACE, i: t.i };
+  // beside a bend up on a hill: the top of the deck it stands on
+  const deck = TRACK.decks.find((d) => onDeck(d.pts, x, z));
+  return { y: deck ? deck.y : 0, i: t.i };
+}
+
+/** Is (x, z) on a deck's footprint (a convex quad), `margin` metres round it included? */
+export function onDeck(pts: [number, number][], x: number, z: number, margin = 0) {
+  // (inside every edge, whichever way round the corners go)
+  let sign = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const [ax, az] = pts[i], [bx, bz] = pts[(i + 1) % pts.length];
+    const ex = bx - ax, ez = bz - az, len = Math.hypot(ex, ez) || 1;
+    const c = (ex * (z - az) - ez * (x - ax)) / len;
+    if (!sign) sign = Math.sign(c) || 1;
+    if (c * sign < -margin) return false;
+  }
+  return true;
 }
 
 /**

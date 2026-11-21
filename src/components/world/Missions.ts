@@ -273,8 +273,8 @@ function clean(env: Env): Rules {
       if (clock.crossings >= 1 && hits < 0) hits = ctx.vehicle.wallHits;
       if (hits >= 0 && ctx.vehicle.wallHits > hits) return { over: "lost", why: "You touched the wall" };
       play.progress = clock.laps;
-      play.status = clock.crossings === 0 ? "Cross the line — then keep off the walls" : "Clean so far";
-      if (clock.laps >= 1) return { over: "won" };
+      play.status = clock.crossings === 0 ? "Cross the line — then keep off the walls" : `Lap ${Math.min(env.def.target, clock.laps + 1)} of ${env.def.target} — clean so far`;
+      if (clock.laps >= env.def.target) return { over: "won" };
     },
   };
 }
@@ -345,7 +345,8 @@ function slalom(env: Env): Rules {
       while (next < n && env.prog() >= list[next].s) {
         const v = ctx.vehicle;
         const lat = lateralOf(v.x, v.z, sampleIndexAt(v.s));
-        if (Math.abs(lat - list[next].centre) > 3.4) return { over: "lost", why: `Missed gate ${next + 1}` };
+        // (through the middle: the car's whole width between the cones, not clipping one on the way)
+        if (Math.abs(lat - list[next].centre) > 2.5) return { over: "lost", why: `Missed gate ${next + 1}` };
         markers[next].color = "rgba(0,0,0,0)";
         next++;
         playPickup(1 + next * 0.03);
@@ -494,7 +495,7 @@ function parking(env: Env): Rules {
   const bays = straightSpots(n, 150).map((s, k) => {
     const lat = (k % 2 ? 1 : -1) * 3.8;
     const p = pointAt(s, lat);
-    const m = MeshBuilder.CreateGround("bay", { width: 5.2, height: 9 }, ctx.scene);
+    const m = MeshBuilder.CreateGround("bay", { width: 4.2, height: 7.2 }, ctx.scene);
     m.material = mat;
     m.parent = root;
     m.isPickable = false;
@@ -526,9 +527,10 @@ function parking(env: Env): Rules {
       const along = dx * Math.sin(b.heading) + dz * Math.cos(b.heading);
       const across = dx * Math.cos(b.heading) - dz * Math.sin(b.heading);
       const angle = Math.min(Math.abs(wrap(v.heading - b.heading)), Math.abs(wrap(v.heading - b.heading - Math.PI)));
-      const inside = Math.abs(along) < 3 && Math.abs(across) < 1.4 && angle < 0.4;
-      hold = inside && Math.abs(v.speed) < 0.7 ? hold + dt : 0;
-      if (hold >= 1) {
+      // (a tight bay: square in it, the whole car inside its lines, held still for 1.5 s)
+      const inside = Math.abs(along) < 1.6 && Math.abs(across) < 0.75 && angle < 0.22;
+      hold = inside && Math.abs(v.speed) < 0.5 ? hold + dt : 0;
+      if (hold >= 1.5) {
         cur++;
         hold = 0;
         playPickup(1.2);
@@ -536,7 +538,7 @@ function parking(env: Env): Rules {
       }
       play.progress = cur;
       if (cur >= n) return { over: "won" };
-      play.status = inside ? (Math.abs(v.speed) < 0.7 ? `Hold it… ${Math.max(0, 1 - hold).toFixed(1)} s` : "Now stop!") : `Bay ${cur + 1} of ${n}`;
+      play.status = inside ? (Math.abs(v.speed) < 0.7 ? `Hold it… ${Math.max(0, 1.5 - hold).toFixed(1)} s` : "Now stop!") : `Bay ${cur + 1} of ${n}`;
     },
   };
 }
@@ -618,7 +620,7 @@ export function buildMission(ctx: Ctx, parent: Node, deps: MissionDeps, def: Mis
 
   // the duel is a one-lap race against one rival
   if (def.kind === "duel") {
-    const race = buildRace(ctx, root, deps, { laps: 1, rivals: [{ name: "The Rival", color: "#ff3b6b" }], skills: [0.98] });
+    const race = buildRace(ctx, root, deps, { laps: 2, rivals: [{ name: "The Rival", color: "#ff3b6b" }], skills: [1.04] });
     Object.assign(play, { kind: "mission", title: def.title, objective: def.brief });
     let saved = false;
     ctx.onFrame(() => {

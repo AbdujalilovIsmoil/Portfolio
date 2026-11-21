@@ -22,13 +22,13 @@ export interface TrackDef {
 
 export const TRACKS: Record<TrackId, TrackDef> = {
   circuit: { id: "circuit", name: "Grand Circuit", blurb: "Hairpins, a chicane, two hills and the loop-the-loop", layout: LAYOUT },
-  speedway: { id: "speedway", name: "Speedway", blurb: "A fast oval with a hill on the back straight", layout: "S S S GRID START S S S R3 R3 S S UP BR DN S S S R3 R3".split(" ") },
-  valley: { id: "valley", name: "Hairpin Valley", blurb: "Three hairpins, then a hill on the long way back", layout: "S S S GRID START S S HR S S S S S HL S S S S S HR S S S UP BR DN S S S R3 S R3 S S".split(" ") },
+  speedway: { id: "speedway", name: "Speedway", blurb: "A fast oval: under the aquarium, through a tunnel, right-left-left-right up on the hill", layout: "S S S GRID START S S SUB S R3 R3 TUN S UP R2 L2 L2 R2 DN R3 R3".split(" ") },
+  valley: { id: "valley", name: "Hairpin Valley", blurb: "Straight under the aquarium, three hairpins, a tunnel and an S-bend on a hilltop", layout: "S S S GRID START SUB S S HR S S TUN S S S S HL S S S S S HR UP L2 R2 R2 L2 DN S R3 S R3 S S".split(" ") },
   mountain: {
     id: "mountain",
     name: "Loop Mountain",
-    blurb: "Two hills and a loop-the-loop round a big square",
-    layout: "S S S GRID START S S UP BR DN S R3 S S S S LOOP S S R3 S S UP BR BR DN S S S S S S S S R3 S S S S S S S S R3".split(" "),
+    blurb: "The aquarium, a loop-the-loop, a tunnel and a chicane on top of the second hill",
+    layout: "S S S GRID START SUB S S UP BR DN S R3 S S S S LOOP S S R3 S TUN S S UP R2 L2 L2 R2 DN S S S S R3 S S S S S S S S R3".split(" "),
   },
 };
 
@@ -59,18 +59,18 @@ export interface MissionDef {
 }
 
 export const MISSIONS: MissionDef[] = [
-  { id: "gates", title: "First Gates", brief: "Drive through all 10 gates, in order, before the clock runs out.", track: "speedway", kind: "gates", time: 40, target: 10, icon: "🚩" },
-  { id: "coins", title: "Coin Rush", brief: "Collect 20 coins scattered round the valley.", track: "valley", kind: "coins", time: 75, target: 20, icon: "🪙" },
-  { id: "hotlap", title: "Hot Lap", brief: "One lap of the Grand Circuit in under 0:50.", track: "circuit", kind: "hotlap", time: 50, target: 1, icon: "⏱️" },
-  { id: "clean", title: "Clean Sheet", brief: "A whole lap without touching a single wall.", track: "speedway", kind: "clean", time: 45, target: 1, icon: "🧼" },
-  { id: "slalom", title: "Slalom", brief: "Thread all 10 cone gates — miss one and it's over.", track: "speedway", kind: "slalom", time: 90, target: 10, icon: "🔶" },
-  { id: "smash", title: "Demolition", brief: "Smash 15 crates left on the road.", track: "valley", kind: "smash", time: 75, target: 15, icon: "📦" },
-  { id: "drift", title: "Drift King", brief: "Score 5000 drift points — hold Space to slide through the bends.", track: "valley", kind: "drift", time: 90, target: 5000, icon: "💨" },
-  { id: "speed", title: "Top Speed", brief: "Hit 270 km/h — keep the nitro on round the oval; the blue pads help.", track: "speedway", kind: "speed", time: 45, target: 270, icon: "🚀" },
-  { id: "loops", title: "Loop Master", brief: "Go round the loop-the-loop 3 times.", track: "mountain", kind: "loops", time: 100, target: 3, icon: "➰" },
-  { id: "duel", title: "The Rival", brief: "Beat the rival to the line over one lap of the Grand Circuit.", track: "circuit", kind: "duel", time: 180, target: 1, icon: "🏁" },
-  { id: "parking", title: "Parking Pro", brief: "Stop dead inside 3 parking bays, one after another.", track: "mountain", kind: "parking", time: 150, target: 3, icon: "🅿️" },
-  { id: "courier", title: "Courier", brief: "Pick up 4 parcels and drop each one where it has to go.", track: "circuit", kind: "courier", time: 150, target: 4, icon: "📮" },
+  { id: "gates", title: "First Gates", brief: "Drive through all 14 gates, in order — including the S-bend on the hill — before the clock runs out.", track: "speedway", kind: "gates", time: 50, target: 14, icon: "🚩" },
+  { id: "coins", title: "Coin Rush", brief: "Collect 30 coins scattered round the valley — some on the hilltop bends.", track: "valley", kind: "coins", time: 90, target: 30, icon: "🪙" },
+  { id: "hotlap", title: "Hot Lap", brief: "One lap of the Grand Circuit in under 0:42 — you'll need the nitro.", track: "circuit", kind: "hotlap", time: 42, target: 1, icon: "⏱️" },
+  { id: "clean", title: "Clean Sheet", brief: "Two laps without touching a single wall — the chicane on the hill included.", track: "speedway", kind: "clean", time: 110, target: 2, icon: "🧼" },
+  { id: "slalom", title: "Slalom", brief: "Thread all 12 cone gates through their middle — miss one and it's over.", track: "mountain", kind: "slalom", time: 95, target: 12, icon: "🔶" },
+  { id: "smash", title: "Demolition", brief: "Smash 22 crates left on the road.", track: "valley", kind: "smash", time: 90, target: 22, icon: "📦" },
+  { id: "drift", title: "Drift King", brief: "Score 9000 drift points — hit a wall and you lose the drift you're in.", track: "valley", kind: "drift", time: 110, target: 9000, icon: "💨" },
+  { id: "speed", title: "Top Speed", brief: "Hit 280 km/h — keep the nitro lit through the bends; the blue pads help.", track: "speedway", kind: "speed", time: 50, target: 280, icon: "🚀" },
+  { id: "loops", title: "Loop Master", brief: "Go round the loop-the-loop 4 times.", track: "mountain", kind: "loops", time: 240, target: 4, icon: "➰" },
+  { id: "duel", title: "The Rival", brief: "Beat a fast rival to the line over two laps of the Grand Circuit.", track: "circuit", kind: "duel", time: 240, target: 1, icon: "🏁" },
+  { id: "parking", title: "Parking Pro", brief: "Stop dead, straight, inside 4 tight bays, one after another.", track: "mountain", kind: "parking", time: 160, target: 4, icon: "🅿️" },
+  { id: "courier", title: "Courier", brief: "Pick up 5 parcels and drop each one where it has to go.", track: "circuit", kind: "courier", time: 150, target: 5, icon: "📮" },
 ];
 
 export const missionById = (id: string | null | undefined) => MISSIONS.find((m) => m.id === id) ?? null;

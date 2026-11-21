@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { MISSIONS, RACE_LAPS, TRACKS, TRACK_IDS } from "../src/components/world/game";
 import { LapClock } from "../src/components/world/laps";
-import { LAYOUT, TILE, TRACK, WALL_IN, WALL_T, buildTrack, setLayout } from "../src/components/world/Track";
+import { LAYOUT, TILE, TRACK, WALL_IN, WALL_T, buildTrack, onDeck, setLayout } from "../src/components/world/Track";
 
 afterAll(() => setLayout(LAYOUT));
 
@@ -14,7 +14,7 @@ describe("the tracks", () => {
       expect(t.end.h).toEqual([0, 1]);
       expect(t.end.level).toBeCloseTo(0, 6);
       expect(t.length).toBeGreaterThan(700);
-      expect(t.length).toBeLessThan(1800);
+      expect(t.length).toBeLessThan(2100);
       const S = t.samples, L = t.length;
       const onLoop = (s: number) => !!t.loop && s >= t.loop.s0 && s <= t.loop.s0 + t.loop.length;
       for (let a = 0; a < S.length; a += 2)
@@ -27,6 +27,19 @@ describe("the tracks", () => {
       expect(t.pieces.some((p) => p.cmd === "START")).toBe(true);
     });
   }
+
+  it("has bends up on the hills (all but the Grand Circuit), each standing on a deck under its road", () => {
+    expect(buildTrack(LAYOUT).decks).toHaveLength(0);
+    for (const id of ["speedway", "valley", "mountain"] as const) {
+      const t = buildTrack(TRACKS[id].layout);
+      expect(t.decks.length, id).toBe(4);
+      for (const d of t.decks) expect(d.y, id).toBeCloseTo(0.5 * TILE, 6);
+      // the bends' road runs over the decks, and nothing on a deck is anywhere but up on the hill
+      const onAny = t.samples.filter((q) => t.decks.some((d) => onDeck(d.pts, q.x, q.z)));
+      expect(onAny.length, id).toBeGreaterThan(20);
+      expect(onAny.every((q) => q.y > 0.49 * TILE), id).toBe(true);
+    }
+  });
 
   it("can be switched: every module reads the one being driven", () => {
     setLayout(TRACKS.speedway.layout);

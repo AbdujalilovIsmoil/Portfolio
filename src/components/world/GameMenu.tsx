@@ -146,6 +146,188 @@ const Tile = styled.button<{ $c: string; $primary?: boolean }>`
   }
 `;
 
+const shine = keyframes`
+  from { transform: translateX(-120%) skewX(-20deg); }
+  to { transform: translateX(260%) skewX(-20deg); }
+`;
+
+/**
+ * A game-mode card, like a racing game's main menu: a real shot from that mode fills it, the name
+ * sits big and slanted over a dark fade at the bottom, and on hover the shot pushes in and a light
+ * sweeps across.
+ */
+const ModeCard = styled.button<{ $c: string; $img: string; $pos: string }>`
+  --c: ${({ $c }) => $c};
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 470px;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  overflow: hidden;
+  isolation: isolate;
+  text-align: left;
+  color: #fff;
+  cursor: pointer;
+  background: #0b0e15;
+  box-shadow: 0 24px 60px -28px rgba(0, 0, 0, 0.9);
+  font-family: var(--font-nav);
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s ease, box-shadow 0.25s ease;
+
+  /* the shot */
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: var(--shot, 66%);
+    z-index: -2;
+    background: url(${({ $img }) => $img}) ${({ $pos }) => $pos} / cover no-repeat;
+    transform: scale(1.02);
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1), filter 0.3s ease;
+    filter: saturate(1.05) brightness(0.92);
+  }
+  /* the shot fades into the dark the text sits on, tinted with the mode's colour at the bottom */
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background:
+      linear-gradient(180deg, rgba(5, 7, 12, 0.4) 0%, transparent 18%, transparent calc(var(--shot, 66%) - 26%), #070a11 var(--shot, 66%)),
+      linear-gradient(0deg, color-mix(in srgb, var(--c) 22%, transparent), transparent 40%);
+  }
+  .sweep {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 45%;
+    z-index: 0;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+    transform: translateX(-120%) skewX(-20deg);
+  }
+  .num {
+    position: absolute;
+    top: 14px;
+    left: 16px;
+    padding: 4px 10px 4px 9px;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    background: var(--c);
+    color: #0b0e15;
+    clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+  }
+  .badge {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    background: rgba(5, 7, 12, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(6px);
+  }
+  .body {
+    position: relative;
+    padding: 0 22px 22px;
+  }
+  h2 {
+    margin: 0;
+    color: #fff;
+    font-size: clamp(34px, 3.8vw, 44px);
+    line-height: 0.95;
+    font-weight: 900;
+    font-style: italic;
+    text-transform: uppercase;
+    letter-spacing: -1px;
+    text-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
+  }
+  .bar {
+    width: 56px;
+    height: 5px;
+    margin: 12px 0 12px;
+    background: var(--c);
+    box-shadow: 0 0 16px var(--c);
+    transform: skewX(-25deg);
+    transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  p {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: rgba(238, 242, 250, 0.78);
+  }
+  .go {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: rgba(238, 242, 250, 0.7);
+  }
+  .go b {
+    color: var(--c);
+    transition: transform 0.25s ease;
+  }
+
+  &:hover,
+  &:focus-visible {
+    transform: translateY(-6px);
+    border-color: var(--c);
+    box-shadow: 0 30px 70px -30px color-mix(in srgb, var(--c) 70%, black), 0 0 0 1px var(--c);
+    outline: none;
+  }
+  &:hover::before,
+  &:focus-visible::before {
+    transform: scale(1.1);
+    filter: saturate(1.15) brightness(1);
+  }
+  &:hover .sweep,
+  &:focus-visible .sweep {
+    animation: ${shine} 0.9s ease;
+  }
+  &:hover .bar,
+  &:focus-visible .bar {
+    width: 96px;
+  }
+  &:hover .go b,
+  &:focus-visible .go b {
+    transform: translateX(4px);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &,
+    &::before,
+    .bar,
+    .go b {
+      transition: none;
+    }
+    &:hover .sweep {
+      animation: none;
+    }
+  }
+  @media (max-width: 820px) {
+    --shot: 210px;
+    min-height: 0;
+    padding-top: 150px;
+    h2 {
+      font-size: 32px;
+    }
+  }
+`;
+
 const Grid = styled.div<{ $min: number }>`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(${({ $min }) => $min}px, 1fr));
@@ -180,13 +362,6 @@ const Small = styled(Tile)`
     height: 110px;
     margin-bottom: 4px;
   }
-`;
-
-const Foot = styled.div`
-  margin-top: 18px;
-  font-size: 12px;
-  color: rgba(238, 242, 250, 0.5);
-  text-align: center;
 `;
 
 const Loading = styled.div`
@@ -295,29 +470,52 @@ export default function GameMenu(props: {
             <Head>
               <div>
                 <h1>{canResume ? "Paused" : "Pick how to play"}</h1>
-                <p>Ismoil Abdujalilov · Frontend (React) Engineer — a portfolio you drive</p>
               </div>
               {canResume && <Resume onClick={onResume}>Resume ▸</Resume>}
             </Head>
             <Modes>
-              <Tile $c="#ff3b6b" onClick={() => onScreen("race")}>
-                <div className="icon">🏁</div>
-                <h2>Race</h2>
-                <p>Three laps against three rivals — four tracks to choose from. Just racing: no billboards.</p>
-                <span className="tag">4 tracks · 3 laps</span>
-              </Tile>
-              <Tile $c="#39a0ff" $primary onClick={() => onPick("free", "circuit", null)}>
-                <div className="icon">🚗</div>
-                <h2>Free drive</h2>
-                <p>Drive the Grand Circuit at your own pace. My experience, projects and skills stand on its billboards — their cards come up as you reach them.</p>
-                <span className="tag">The portfolio</span>
-              </Tile>
-              <Tile $c="#ffb21f" onClick={() => onScreen("missions")}>
-                <div className="icon">🎯</div>
-                <h2>Missions</h2>
-                <p>Twelve challenges on the different maps: gates, coins, slalom, drifting, parking, deliveries…</p>
-                <span className="tag">{done} of 12 done</span>
-              </Tile>
+              <ModeCard $c="#ff3b6b" $img="/img/menu/race.webp" $pos="62% 50%" onClick={() => onScreen("race")}>
+                <span className="sweep" />
+                <span className="num">01</span>
+                <span className="badge">4 tracks · 3 laps</span>
+                <div className="body">
+                  <h2>Race</h2>
+                  <div className="bar" />
+                  <p>Three laps against three rivals — four tracks to choose from. Just racing: no billboards.</p>
+                  <div className="go">
+                    <span>Pick a track</span>
+                    <b>▶</b>
+                  </div>
+                </div>
+              </ModeCard>
+              <ModeCard $c="#39a0ff" $img="/img/menu/free.webp" $pos="64% 50%" onClick={() => onPick("free", "circuit", null)}>
+                <span className="sweep" />
+                <span className="num">02</span>
+                <span className="badge">The portfolio</span>
+                <div className="body">
+                  <h2>Free drive</h2>
+                  <div className="bar" />
+                  <p>Drive the Grand Circuit at your own pace. My experience, projects and skills stand on its billboards — their cards come up as you reach them.</p>
+                  <div className="go">
+                    <span>Start driving</span>
+                    <b>▶</b>
+                  </div>
+                </div>
+              </ModeCard>
+              <ModeCard $c="#ffb21f" $img="/img/menu/missions.webp" $pos="50% 50%" onClick={() => onScreen("missions")}>
+                <span className="sweep" />
+                <span className="num">03</span>
+                <span className="badge">{done} of 12 done</span>
+                <div className="body">
+                  <h2>Missions</h2>
+                  <div className="bar" />
+                  <p>Twelve challenges on the different maps: gates, coins, slalom, drifting, parking, deliveries…</p>
+                  <div className="go">
+                    <span>Pick a mission</span>
+                    <b>▶</b>
+                  </div>
+                </div>
+              </ModeCard>
             </Modes>
           </>
         )}
@@ -383,7 +581,6 @@ export default function GameMenu(props: {
         )}
 
         {loading}
-        <Foot>W A S D / arrows — drive · Shift (hold) — nitro · Space — handbrake · R — back on the track · Esc — menu</Foot>
       </Panel>
     </Backdrop>
   );

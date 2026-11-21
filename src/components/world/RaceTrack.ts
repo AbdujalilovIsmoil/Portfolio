@@ -5,7 +5,7 @@ import { QUALITY } from "./performanceTier";
 import { buildBirds } from "./Birds";
 import { buildMountains } from "./Mountains";
 import { buildSky } from "./Sky";
-import { ROAD_HALF, SURFACE, TILE, TRACK, WALL_H, WALL_IN, WALL_T, boostPad, heightAt, loopPose, roadFrames, sampleAt } from "./Track";
+import { ROAD_HALF, SURFACE, TILE, TRACK, WALL_H, WALL_IN, WALL_T, boostPad, heightAt, loopPose, onDeck, overUnder, roadFrames, sampleAt, underHoles } from "./Track";
 import { mainStraightEnd, reserved } from "./Zones";
 import { canvasTexture, group, hash, lit, unlit, type Ctx } from "./core";
 
@@ -35,7 +35,7 @@ export const FOOT = {
 // ------------------------------------------------------------------ textures
 
 /** Lawn: a mottled green with blades and the odd dry patch. */
-function grassTexture(ctx: Ctx, scale: number) {
+export function grassTexture(ctx: Ctx, scale: number) {
   const t = canvasTexture(ctx, 512, 512, (g) => {
     g.fillStyle = "#4b7531";
     g.fillRect(0, 0, 512, 512);
@@ -61,7 +61,7 @@ function grassTexture(ctx: Ctx, scale: number) {
 }
 
 /** Asphalt: dark grey with fine aggregate and faint tyre-worn streaks. */
-function asphaltTexture(ctx: Ctx, scale: number) {
+export function asphaltTexture(ctx: Ctx, scale: number) {
   const t = canvasTexture(ctx, 512, 512, (g) => {
     g.fillStyle = "#3b3d42";
     g.fillRect(0, 0, 512, 512);
@@ -170,10 +170,132 @@ function buildWall(ctx: Ctx, parent: Node, side: 1 | -1) {
   return mesh;
 }
 
+// ------------------------------------------------------------------ the lawn
+
+/**
+ * The lawn, `size` metres square round the origin, with holes dug where the road goes underground
+ * (axis-aligned: cut into a grid along every hole's edges, the cells inside a hole left out). Its UVs
+ * are the ground's own (a repeat every 5 m, as the plain ground had), so it matches the tiles' verges.
+ */
+function lawn(ctx: Ctx, size: number, holes: [number, number, number, number][]) {
+  const h = size / 2;
+  const xs = [...new Set([-h, h, ...holes.flatMap((r) => [r[0], r[1]])])].sort((a, b) => a - b);
+  const zs = [...new Set([-h, h, ...holes.flatMap((r) => [r[2], r[3]])])].sort((a, b) => a - b);
+  const pos: number[] = [], uv: number[] = [], idx: number[] = [], nor: number[] = [];
+  for (let i = 0; i < xs.length - 1; i++)
+    for (let j = 0; j < zs.length - 1; j++) {
+      const cx = (xs[i] + xs[i + 1]) / 2, cz = (zs[j] + zs[j + 1]) / 2;
+      if (holes.some((r) => cx > r[0] && cx < r[1] && cz > r[2] && cz < r[3])) continue;
+      const b = pos.length / 3;
+      for (const [x, z] of [
+        [xs[i], zs[j]],
+        [xs[i + 1], zs[j]],
+        [xs[i + 1], zs[j + 1]],
+        [xs[i], zs[j + 1]],
+      ]) {
+        pos.push(x, 0, z);
+        nor.push(0, 1, 0);
+        uv.push((x + h) / size, (z + h) / size);
+      }
+      // (facing up in this right-handed scene)
+      idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
+    }
+  const m = new Mesh("ground", ctx.scene);
+  const vd = new VertexData();
+  vd.positions = pos;
+  vd.indices = idx;
+  vd.uvs = uv;
+  vd.normals = nor;
+  vd.applyToMesh(m);
+  return m;
+}
+
+// ------------------------------------------------------------------ decks under the bends up on the hills
+
+/**
+ * The bends up on a hill stand on concrete: a block the size of each one's tile, from the lawn up
+ * to just under the tile (its sides banded every 2 m like poured concrete), so the bend sits on top
+ * with a sheer drop beside it.
+ */
+function buildDecks(ctx: Ctx, parent: Node) {
+  if (!TRACK.decks.length) return;
+  const pos: number[] = [];
+  const uv: number[] = [];
+  const idx: number[] = [];
+  for (const d of TRACK.decks) {
+    const top = d.y - 0.03;
+    const n = d.pts.length;
+    // the sides
+    for (let i = 0; i < n; i++) {
+      const [ax, az] = d.pts[i], [bx, bz] = d.pts[(i + 1) % n];
+      const len = Math.hypot(bx - ax, bz - az);
+      const b = pos.length / 3;
+      pos.push(ax, -0.05, az, bx, -0.05, bz, bx, top, bz, ax, top, az);
+      uv.push(0, 0, len / 6, 0, len / 6, top / 6, 0, top / 6);
+      idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
+    }
+    // the top (under the tile: what shows round its edges)
+    const b = pos.length / 3;
+    for (const [x, z] of d.pts) {
+      pos.push(x, top, z);
+      uv.push(x / 6, z / 6);
+    }
+    for (let i = 1; i < n - 1; i++) idx.push(b, b + i, b + i + 1);
+  }
+  const mesh = new Mesh("decks", ctx.scene);
+  const vd = new VertexData();
+  vd.positions = pos;
+  vd.indices = idx;
+  vd.uvs = uv;
+  const normals: number[] = [];
+  VertexData.ComputeNormals(pos, idx, normals);
+  vd.normals = normals;
+  vd.applyToMesh(mesh);
+  const mat = lit(ctx, { rough: 0.95, double: true });
+  mat.albedoTexture = concreteTexture(ctx);
+  mesh.material = mat;
+  mesh.parent = parent;
+  mesh.receiveShadows = true;
+  mesh.isPickable = false;
+  mesh.freezeWorldMatrix();
+  ctx.shadow?.addShadowCaster(mesh, false);
+}
+
+/** Poured concrete: pale grey, a seam every lift, streaks of weather down it. */
+export function concreteTexture(ctx: Ctx) {
+  const t = canvasTexture(ctx, 256, 256, (g) => {
+    g.fillStyle = "#b8b3a8";
+    g.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 900; i++) {
+      const v = 150 + Math.floor(hash(i, 3) * 60);
+      g.fillStyle = `rgba(${v},${v - 4},${v - 12},0.35)`;
+      g.fillRect(hash(i, 1) * 256, hash(i, 2) * 256, 2 + hash(i, 4) * 3, 2 + hash(i, 5) * 3);
+    }
+    // weather streaks running down
+    for (let i = 0; i < 26; i++) {
+      g.fillStyle = `rgba(90,86,78,${0.05 + hash(i, 7) * 0.08})`;
+      g.fillRect(hash(i, 6) * 256, 0, 2 + hash(i, 8) * 6, 256);
+    }
+    // the seams between lifts, and the form-tie holes
+    g.fillStyle = "rgba(70,66,60,0.55)";
+    g.fillRect(0, 0, 256, 3);
+    g.fillRect(0, 128, 256, 3);
+    g.fillStyle = "rgba(60,56,50,0.6)";
+    for (let x = 32; x < 256; x += 64)
+      for (const y of [64, 192]) {
+        g.beginPath();
+        g.arc(x, y, 3, 0, Math.PI * 2);
+        g.fill();
+      }
+  });
+  t.wrapU = t.wrapV = Texture.WRAP_ADDRESSMODE;
+  return t;
+}
+
 // ------------------------------------------------------------------ the loop-the-loop
 
 /** Red and white kerb blocks, 2 m each (v runs along the road). */
-function kerbTexture(ctx: Ctx) {
+export function kerbTexture(ctx: Ctx) {
   const t = canvasTexture(ctx, 32, 256, (g) => {
     g.fillStyle = "#c8312d";
     g.fillRect(0, 0, 32, 128);
@@ -450,7 +572,7 @@ export function buildRaceTrack(ctx: Ctx, parent: Node, o: { boards: { x: number;
   const colliders = ctx.colliders;
 
   // ---- the ground: a lawn to the mountains (2 cm under the tiles' verges)
-  const ground = MeshBuilder.CreateGround("ground", { width: 2600, height: 2600 }, ctx.scene);
+  const ground = lawn(ctx, 2600, underHoles());
   const gm = lit(ctx, { rough: 1 });
   gm.albedoTexture = grassTexture(ctx, 2600 / 5);
   ground.material = gm;
@@ -505,6 +627,7 @@ export function buildRaceTrack(ctx: Ctx, parent: Node, o: { boards: { x: number;
   }
 
   buildLoop(ctx, root);
+  buildDecks(ctx, root);
 
   // ---- the main straight: grandstands outside, flags each side of the start
   const s0 = 0;
@@ -554,6 +677,8 @@ export function buildRaceTrack(ctx: Ctx, parent: Node, o: { boards: { x: number;
   // ---- real trees, shrubs and flowers (Poly Haven, life size)
   const clearOf = (x: number, z: number, track: number, boards: number) =>
     !reserved(x, z) &&
+    !TRACK.decks.some((d) => onDeck(d.pts, x, z, 6)) &&
+    !overUnder(x, z, 6) &&
     TRACK.samples.every((q) => Math.hypot(q.x - x, q.z - z) > track) &&
     o.boards.every((b) => Math.hypot(b.x - x, b.z - z) > boards);
   const B = TRACK.bounds;

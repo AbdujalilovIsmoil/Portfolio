@@ -2,11 +2,12 @@ import { Quaternion, Vector3, type Node, type ShaderMaterial, type TransformNode
 import type { MutableRefObject } from "react";
 import { instantiate } from "./assets";
 import type { DriveSignal } from "./driveSignal";
+import { buildExhaust } from "./Exhaust";
 import { createEngineSample, peekCtx, playImpactThud, playWhoosh, type EngineSound } from "./sound";
 import type { TeleportSignal } from "./teleportSignal";
-import { SURFACE, TRACK, WALL_IN, heightAt, lateralOf, loopPose, startPose, trackS } from "./Track";
+import { SURFACE, TRACK, WALL_IN, heightAt, lateralOf, loopPose, sampleAt, startPose, trackS } from "./Track";
 import type { WorldInput } from "./WorldInputContext";
-import { Instancer, clamp, disc, group, lerp, points, setEuler, unlit, type Ctx } from "./core";
+import { Instancer, boxHit, clamp, disc, group, lerp, points, setEuler, unlit, type Ctx, type DynamicCollider } from "./core";
 
 /** Kenney Car Kit "race" (CC0): 2.56 units long, wheels of radius 0.3, front towards +z. */
 export const CAR_FILE = "race.glb";
@@ -25,7 +26,14 @@ const MAX_REV = 8;
 const ACCEL = 13;
 const BRAKE = 34;
 const DRAG = 6; // coasting
-const HANDBRAKE = 14;
+/** the handbrake: locked rear wheels slow the car this much (m/s²) — and let its tail go */
+const HANDBRAKE = 7;
+/** how much faster the car turns with its rear wheels locked (it swings round) */
+const HANDBRAKE_YAW = 1.9;
+/** sliding sideways scrubs speed: this much (m/s²) fully sideways, less the straighter the slide */
+const SLIDE_SCRUB = 11;
+/** past the flag: how hard the car brakes itself to a stop (m/s²) — firm, never a skid */
+const AUTO_BRAKE = 9;
 const MAX_STEER = 0.55;
 /** the steering lock shrinks with speed: MAX_STEER / (1 + speed / STEER_FADE) */
 const STEER_FADE = 11;
@@ -34,6 +42,11 @@ export const cornerSpeed = (R: number) => STEER_FADE * (MAX_STEER / Math.atan(WH
 /** Two collision circles, over the front and the rear axle. */
 export const AXLE = 1.3;
 export const BODY_R = 1.05;
+/** The car's body as a box (metres): half its width (wheels included) and half its length, nose to wing. */
+export const CAR_HALF_W = 1.06;
+export const CAR_HALF_L = 2.26;
+/** how much two cars bounce apart when they hit (0: they just stop closing) */
+const BOUNCE = 0.3;
 /** How far from the centre line the car's middle can get before its side touches a wall. */
 const WALL_LIMIT = WALL_IN - 1.1;
 /** A boost pad: the speed it sends you off at (≈ 200 km/h), and for how long the car may go that fast. */
@@ -122,6 +135,8 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
     return p.material as ShaderMaterial;
   };
   const tailGlow = lamp([-0.62, 0.62], 0.62, -2.22, "#ff3b30", 2.4);
+  // ---- tailpipes, and the nitro's flames out of them
+  const exhaust = buildExhaust(ctx, tilt);
 
   // ---- tyre smoke from the rear wheels when sliding
   const DUST = 48;
@@ -155,6 +170,30 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
   /** two circles, over the front and the rear axle */
   const blocked = (x: number, z: number, h: number) =>
     circleBlocked(x + Math.sin(h) * AXLE, z + Math.cos(h) * AXLE) || circleBlocked(x - Math.sin(h) * AXLE, z - Math.cos(h) * AXLE);
+  /** The way out of whatever the car at (x, z, h) has run into (the deepest touch), or null. */
+  const hitNormal = (x: number, z: number, h: number): [number, number] | null => {
+    let best: [number, number] | null = null;
+    let depth = 0;
+    for (const k of [1, -1]) {
+      const cx = x + Math.sin(h) * AXLE * k, cz = z + Math.cos(h) * AXLE * k;
+      for (const c of ctx.colliders) {
+        let dx = cx - clamp(cx, c.x - c.hx, c.x + c.hx), dz = cz - clamp(cz, c.z - c.hz, c.z + c.hz);
+        let d = Math.hypot(dx, dz);
+        if (d >= BODY_R) continue;
+        if (d < 1e-4) {
+          // (its middle is inside the box: out through the nearer side)
+          const ox = c.hx - Math.abs(cx - c.x), oz = c.hz - Math.abs(cz - c.z);
+          [dx, dz] = ox < oz ? [Math.sign(cx - c.x) || 1, 0] : [0, Math.sign(cz - c.z) || 1];
+          d = 1;
+        }
+        if (BODY_R - d > depth) {
+          depth = BODY_R - d;
+          best = [dx / d, dz / d];
+        }
+      }
+    }
+    return best;
+  };
 
   /** The road's height under (x, z): the smooth profile at that point of the lap. */
   const roadY = (x: number, z: number) => {
@@ -184,6 +223,7 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
     teleportRef.current.value++;
   };
   ctx.teleportPlayer = (x, z) => {
+    travel = v.heading; // (put down somewhere else, it isn't still sliding)
     loopD = -1;
     v.loop = -1;
     v.x = x;
@@ -295,9 +335,36 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
     const { move, joystick: joy } = io;
     const locked = io.locked || v.frozen;
     const throttle = locked ? 0 : clamp((move.forward ? 1 : 0) - (move.backward ? 1 : 0) - joy.y, -1, 1);
-    const steerIn = locked ? 0 : clamp((move.right ? 1 : 0) - (move.left ? 1 : 0) + joy.x, -1, 1);
+    // past the flag (or a mission done) the car drives itself to a stop, as in a racing game: it
+    // follows the road a little ahead, eases back to the middle and brakes — no coasting into a wall
+    const autoStop = v.frozen && loopD < 0 && Math.abs(v.speed) > 1;
+    let steerIn = locked ? 0 : clamp((move.right ? 1 : 0) - (move.left ? 1 : 0) + joy.x, -1, 1);
+    /** past the flag: how hard to brake now (firm; hard, like a driver, when a tight bend is coming) */
+    let autoBrake = AUTO_BRAKE;
+    if (autoStop) {
+      const here = trackS(v.x, v.z, hint);
+      const ahead = sampleAt(here.s + 8 + Math.abs(v.speed) * 0.35);
+      const lat = lateralOf(v.x, v.z, here.i);
+      // (heading grows to the left; steering right turns it down)
+      const want = ahead.heading - clamp(lat * 0.05, -0.3, 0.3);
+      steerIn = clamp(-wrapAngle(want - v.heading) * 2.5, -1, 1);
+      // the bend coming within the distance it takes to stop: brake for it in time (a hairpin just past
+      // the line would otherwise be met at 200 km/h — into the wall and off it again)
+      const reach = (v.speed * v.speed) / (2 * AUTO_BRAKE) + 10;
+      let turn = 0;
+      for (let d = 10; d <= reach; d += 10) turn = Math.max(turn, Math.abs(wrapAngle(sampleAt(here.s + d).heading - sampleAt(here.s).heading)));
+      if (turn > 0.35) autoBrake = BRAKE;
+    }
     const handbrake = !locked && io.spaceHeld;
     const boost = !locked && move.run && throttle > 0;
+    // (the car's velocity → its speed along the nose and the way it travels — a slide if they differ)
+    const fromVelocity = (vx: number, vz: number) => {
+      const back = vx * Math.sin(v.heading) + vz * Math.cos(v.heading) < 0;
+      const sp = Math.hypot(vx, vz);
+      if (sp < 1e-3) return 0;
+      travel = v.heading + clamp(wrapAngle(Math.atan2(vx, vz) + (back ? Math.PI : 0) - v.heading), -1.2, 1.2);
+      return sp * (back ? -1 : 1);
+    };
     lastBump -= dt;
     scrapeClock -= dt;
     padTime -= dt;
@@ -311,17 +378,19 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
       else if (s < top) {
         // full pull up to MAX_SPEED; past it (the nitro) it fades as the speed climbs to TOP_SPEED
         const pull = s < MAX_SPEED ? ACCEL * (boost ? 1.3 : 1) : NITRO * Math.max(0.08, 1 - (s - MAX_SPEED) / (TOP_SPEED - MAX_SPEED));
-        s = Math.min(top, s + pull * throttle * dt);
+        // (the handbrake locks the driven rear wheels: next to nothing gets through them)
+        s = Math.min(top, s + pull * throttle * dt * (handbrake ? 0.15 : 1));
       }
     } else if (throttle < 0) s -= (s > 0 ? BRAKE : ACCEL * 0.6) * -throttle * dt;
-    else s -= Math.sign(s) * Math.min(Math.abs(s), DRAG * dt);
+    else s -= Math.sign(s) * Math.min(Math.abs(s), (autoStop ? autoBrake : DRAG) * dt);
     if (handbrake) s -= Math.sign(s) * Math.min(Math.abs(s), HANDBRAKE * dt);
     // above it (Shift let go, a pad's push spent, a hill run down) the car eases back down to it
     if (s > top) s = Math.max(top, s - 5 * dt);
 
-    // ---- steering (less lock at speed); the handbrake turns the tail out
-    const want = steerIn * (MAX_STEER / (1 + Math.abs(s) / STEER_FADE)) * (handbrake ? 1.6 : 1);
-    steer = lerp(steer, want, 1 - Math.pow(0.0008, dt));
+    // ---- steering (less lock at speed): the wheels turn first, the car follows them round — a
+    // steering rack takes a moment, so it eases in rather than snapping
+    const want = steerIn * (MAX_STEER / (1 + Math.abs(s) / STEER_FADE));
+    steer = lerp(steer, want, 1 - Math.pow(0.012, dt));
 
     let slide = 0;
     const wasOnLoop = loopD >= 0 && !!LP;
@@ -348,34 +417,45 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
       onPad = nowOnPad;
       s = clamp(s, -MAX_REV, TOP_SPEED);
 
-      const newHeading = v.heading - (s / WHEELBASE) * Math.tan(steer) * mdt;
+      // the handbrake: the rear wheels lock and let go sideways — the car swings round (more than the
+      // steering alone would turn it) while the front wheels still pull it along the way they point
+      const sliding = handbrake && Math.abs(s) > 4;
+      const newHeading = v.heading - (s / WHEELBASE) * Math.tan(steer) * mdt * (sliding ? HANDBRAKE_YAW : 1);
       if (!blocked(v.x, v.z, newHeading)) v.heading = newHeading;
-      const grip = handbrake && Math.abs(s) > 6 ? 2.2 : 14;
+      const grip = sliding && Math.abs(s) > 6 ? 6 : 14;
       travel += wrapAngle(v.heading - travel) * (1 - Math.exp(-grip * mdt));
       slide = Math.abs(wrapAngle(v.heading - travel));
+      // tyres going sideways scrub the speed off (a slide is never free; against a wall, the wall's rub does it)
+      if (!touching) s -= Math.sign(s) * Math.min(Math.abs(s), SLIDE_SCRUB * Math.sin(Math.min(slide, Math.PI / 2)) * mdt);
 
-      // ---- move, sliding along whatever we hit
-      const dx = Math.sin(travel) * s * mdt * Math.cos(slope);
-      const dz = Math.cos(travel) * s * mdt * Math.cos(slope);
-      let hit = false;
-      if (mdt === 0 || !blocked(v.x + dx, v.z + dz, v.heading)) {
-        v.x += dx;
-        v.z += dz;
-      } else if (!blocked(v.x + dx, v.z, v.heading)) {
-        v.x += dx;
-        s *= Math.pow(0.35, dt); // scraping along something costs speed
-        hit = Math.abs(dz) > Math.abs(dx) * 2;
-      } else if (!blocked(v.x, v.z + dz, v.heading)) {
-        v.z += dz;
-        s *= Math.pow(0.35, dt);
-        hit = Math.abs(dx) > Math.abs(dz) * 2;
-      } else hit = true;
-      if (hit) {
-        if (Math.abs(s) > 3 && lastBump <= 0) {
-          playImpactThud(Math.min(1, Math.abs(s) / 18));
-          lastBump = 0.4;
+      // ---- move; run into something and it is a real knock: the part of the speed going into it
+      // is lost (with a little bounce), the part along it is kept — a glancing blow costs a little,
+      // only a head-on one stops the car
+      let vx = Math.sin(travel) * s, vz = Math.cos(travel) * s;
+      const k = mdt * Math.cos(slope);
+      if (mdt === 0 || !blocked(v.x + vx * k, v.z + vz * k, v.heading)) {
+        v.x += vx * k;
+        v.z += vz * k;
+      } else {
+        const [nx, nz] = hitNormal(v.x + vx * k, v.z + vz * k, v.heading) ?? [-Math.sin(travel) * Math.sign(s || 1), -Math.cos(travel) * Math.sign(s || 1)];
+        const vn = vx * nx + vz * nz;
+        if (vn < 0) {
+          const into = -vn, sp = Math.hypot(vx, vz);
+          const fresh = into > 4 && lastBump <= 0;
+          const keep = fresh ? 1 - Math.min(0.35, (0.45 * into) / Math.max(1, sp)) : 1;
+          vx = (vx - vn * nx) * keep + nx * into * (fresh ? 0.2 : 0);
+          vz = (vz - vn * nz) * keep + nz * into * (fresh ? 0.2 : 0);
+          if (fresh) {
+            playImpactThud(Math.min(1, into / 18));
+            lastBump = 0.4;
+          }
         }
-        s *= -0.25;
+        // on along it, if that way is clear
+        if (!blocked(v.x + vx * k, v.z + vz * k, v.heading)) {
+          v.x += vx * k;
+          v.z += vz * k;
+        }
+        s = fromVelocity(vx, vz);
       }
       // ---- the walls: the car's side can't go past them; it slides along, losing speed — and the wall breaks a little
       const at = trackS(v.x, v.z, hint);
@@ -387,40 +467,95 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
         const lx = Math.cos(q.heading) * sgn, lz = -Math.sin(q.heading) * sgn;
         v.x -= lx * push;
         v.z -= lz * push;
-        // how hard we went in: the part of the velocity towards that wall
-        const across = Math.sin(wrapAngle(travel - q.heading)) * s * sgn;
-        const alongWall = Math.cos(wrapAngle(travel - q.heading)) * s;
+        // how hard we went in: the part of the velocity towards that wall (n: off it, onto the road)
+        const nx = -lx, nz = -lz;
+        let wvx = Math.sin(travel) * s, wvz = Math.cos(travel) * s;
+        const vn = wvx * nx + wvz * nz;
+        const across = Math.max(0, -vn);
+        const alongWall = wvx * Math.sin(q.heading) + wvz * Math.cos(q.heading);
+        const fresh = across > 4 && lastBump <= 0;
         const ry = heightAt(at.s) + SURFACE;
         wallHit([v.x + lx * (WALL_IN - WALL_LIMIT), ry, v.z + lz * (WALL_IN - WALL_LIMIT)], [-lx, 0, -lz], [0, 1, 0], across, alongWall, ry);
         if (!touching) v.wallHits++;
         touching = true;
-        s *= across > 4 ? 0.7 : Math.pow(0.5, dt);
-        // turn the car (and its slide) back along the wall
+        if (vn < 0) {
+          // a knock costs some of the speed along the wall too (the steeper, the more) and bounces
+          // the car off a little; just leaning on it costs only the push into it
+          const sp = Math.hypot(wvx, wvz);
+          const keep = fresh ? 1 - Math.min(0.35, (0.45 * across) / Math.max(1, sp)) : 1;
+          wvx = (wvx - vn * nx) * keep + nx * across * (fresh ? 0.2 : 0);
+          wvz = (wvz - vn * nz) * keep + nz * across * (fresh ? 0.2 : 0);
+        }
+        // rubbing along it: a little friction, no more
+        const rub = Math.pow(0.85, mdt);
+        s = fromVelocity(wvx * rub, wvz * rub);
+        // the car turns (and its slide with it) to run along the wall
         const along = Math.cos(wrapAngle(v.heading - q.heading)) >= 0 ? q.heading : q.heading + Math.PI;
-        v.heading += wrapAngle(along - v.heading) * Math.min(1, dt * 4);
-        travel += wrapAngle(along - travel) * Math.min(1, dt * 8);
+        v.heading += wrapAngle(along - v.heading) * Math.min(1, dt * 5);
       } else touching = false;
-      // ---- rivals' cars (solid: bounce off) and crates, cones… (they break or fly, the car goes on)
+      // ---- rivals' cars (solid) and crates, cones… (they break or fly, the car goes on)
+      // A hit between two cars is judged by how fast they close (not how fast you go): touch the back
+      // of a car doing nearly your speed and it is a nudge — you lose a little, it gains a little — as
+      // in a racing game; from the side it is a shove sideways, and neither car stops.
+      /** Touching c: pushed out along n (from it towards us) by `overlap`; `k` +1 at our nose, −1 at our tail. */
+      const touch = (c: DynamicCollider, nx: number, nz: number, overlap: number, k: number) => {
+        const pvx = Math.sin(travel) * s, pvz = Math.cos(travel) * s;
+        // how fast we are closing on it, along the hit
+        const into = -((pvx - (c.vx ?? 0)) * nx + (pvz - (c.vz ?? 0)) * nz);
+        c.hit?.(into, -nx, -nz);
+        if (!c.solid) return;
+        // out of the overlap — all of it by us, at once: the other car may be up against a wall (or
+        // held to its line) and unable to give way, and half a push would leave the bodies inside each
+        // other. The speed is shared as between equal masses, though.
+        const mine = c.push ? 0.5 : 1;
+        v.x += nx * overlap;
+        v.z += nz * overlap;
+        let J = 0;
+        if (into > 0) {
+          // the impulse (equal masses, a little bounce); something that can't be shoved takes none of it
+          J = into * (1 + BOUNCE) * mine;
+          const wx = pvx + nx * J, wz = pvz + nz * J;
+          // back into the car's own terms: all of that speed, now heading a little off the nose — a
+          // slide that the grip then soaks up (only the bounce costs speed, nothing else)
+          const fx = Math.sin(v.heading), fz = Math.cos(v.heading);
+          const back = wx * fx + wz * fz < 0;
+          s = Math.hypot(wx, wz) * (back ? -1 : 1);
+          const dir = Math.atan2(wx, wz) + (back ? Math.PI : 0);
+          travel = v.heading + clamp(wrapAngle(dir - v.heading), -0.7, 0.7);
+          if (into > 4 && lastBump <= 0) {
+            playImpactThud(Math.min(1, into / 16));
+            lastBump = 0.4;
+            // a real knock off-centre (at the nose or the tail) turns the car a little — once, not every frame they rub
+            v.heading += clamp((nx * fz - nz * fx) * J * 0.012 * k, -0.06, 0.06);
+          }
+        }
+        c.push?.(-nx * J, -nz * J, 0, 0);
+      };
+      // (twice for the cars: a knock turns the car a little, which can tip a corner back in — the second
+      // pass puts it out; the speeds have been traded already, so it only moves the car)
       for (const c of ctx.dynamic) {
+        if (c.box) {
+          // another car: body against body (boxes), so they meet where they really touch
+          if (Math.hypot(v.x - c.x, v.z - c.z) > c.r + CAR_HALF_L + 0.5) continue;
+          for (let pass = 0; pass < 2; pass++) {
+            const hit = boxHit(v.x, v.z, v.heading, CAR_HALF_W, CAR_HALF_L, c.x, c.z, c.box.h, c.box.hw, c.box.hl);
+            if (!hit) break;
+            if (pass === 0) {
+              const ahead = (c.x - v.x) * Math.sin(v.heading) + (c.z - v.z) * Math.cos(v.heading);
+              touch(c, hit.nx, hit.nz, hit.depth, ahead >= 0 ? 1 : -1);
+            } else {
+              v.x += hit.nx * hit.depth;
+              v.z += hit.nz * hit.depth;
+            }
+          }
+          continue;
+        }
         for (const k of [1, -1]) {
           const cx = v.x + Math.sin(v.heading) * AXLE * k, cz = v.z + Math.cos(v.heading) * AXLE * k;
           const dx = cx - c.x, dz = cz - c.z;
           const d = Math.hypot(dx, dz), min = BODY_R + c.r;
           if (d >= min || d < 1e-4) continue;
-          const nx = dx / d, nz = dz / d;
-          // how fast we were going into it
-          const into = -(Math.sin(travel) * s * nx + Math.cos(travel) * s * nz);
-          c.hit?.(into, -nx, -nz);
-          if (!c.solid) continue;
-          v.x += nx * (min - d);
-          v.z += nz * (min - d);
-          if (into > 0) {
-            s -= Math.sign(s) * Math.min(Math.abs(s), into * 0.9);
-            if (into > 4 && lastBump <= 0) {
-              playImpactThud(Math.min(1, into / 16));
-              lastBump = 0.4;
-            }
-          }
+          touch(c, dx / d, dz / d, min - d, k);
         }
       }
       v.speed = s;
@@ -452,9 +587,10 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
     spin += (s * dt) / WHEEL_R;
     Quaternion.RotationAxisToRef(AX_X, spin, qRoll);
     // (as you see them: the angle the physics steers is a few degrees at speed — you would never see
-    // it — so they show the steering input, turned in well, a little less the faster you go)
-    const shown = steerIn * (0.5 / (1 + Math.abs(s) / 50));
-    wheelSteer = lerp(wheelSteer, Math.abs(shown) > Math.abs(steer) ? shown : steer, 1 - Math.pow(0.0008, dt));
+    // it — so they show the steering input, turned in well (≈ 34° parked, 22° at 130 km/h), and
+    // quicker than the car follows them: you see the wheels go first, then the car turn)
+    const shown = steerIn * (0.6 / (1 + Math.abs(s) / 70));
+    wheelSteer = lerp(wheelSteer, Math.abs(shown) > Math.abs(steer) ? shown : steer, 1 - Math.pow(0.0002, dt));
     Quaternion.RotationAxisToRef(AX_Y, -wheelSteer, qSteer);
     for (const w of wheels) {
       const q = w.node.rotationQuaternion ?? (w.node.rotationQuaternion = new Quaternion());
@@ -463,6 +599,9 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
         qTmp.multiplyToRef(qRoll, q);
       } else w.base.multiplyToRef(qRoll, q);
     }
+
+    // ---- the nitro's flames (lit while Shift and the throttle are held)
+    exhaust.update(dt, boost, Math.abs(s));
 
     // ---- brake lights
     const braking = (throttle < 0 && s > 0.5) || handbrake;

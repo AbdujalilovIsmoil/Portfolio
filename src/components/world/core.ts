@@ -67,6 +67,8 @@ export interface VehicleState {
   loop: number;
   /** held still (a race's countdown, a finished mission, the menu open): the pedals do nothing */
   frozen: boolean;
+  /** won the race: the camera circles the car while the fireworks go up */
+  celebrate: boolean;
   /** how many times the car has touched a wall (it only ever goes up) */
   wallHits: number;
   /** how far the car is sliding sideways (radians between where it points and where it goes) */
@@ -83,6 +85,45 @@ export interface DynamicCollider {
   solid: boolean;
   /** the car ran into it: how fast (m/s, along the hit) and which way it was pushed (nx, nz) */
   hit?: (speed: number, nx: number, nz: number) => void;
+  /** it moves (a rival's car): its velocity now (m/s), so a hit is judged by how fast the two close */
+  vx?: number;
+  vz?: number;
+  /**
+   * It moves and can be shoved (as heavy as the player's car): the change to its velocity from a hit
+   * (dvx, dvz) and how far it is pushed out of the overlap (ox, oz).
+   */
+  push?: (dvx: number, dvz: number, ox: number, oz: number) => void;
+  /**
+   * A car: its real footprint, a box (half width, half length, heading) — tested box against box, so
+   * two cars touch where their bodies do, never through each other. `r` is then only a quick
+   * "anywhere near" radius.
+   */
+  box?: { hw: number; hl: number; h: number };
+}
+
+/**
+ * Two boxes on the ground (centre, heading — 0 = +z — half width, half length): do they overlap, and
+ * if so the shortest way to push A out of B (unit normal from B towards A) and how deep they are.
+ */
+export function boxHit(ax: number, az: number, ah: number, aw: number, al: number, bx: number, bz: number, bh: number, bw: number, bl: number): { nx: number; nz: number; depth: number } | null {
+  const fa: [number, number] = [Math.sin(ah), Math.cos(ah)], ra: [number, number] = [Math.cos(ah), -Math.sin(ah)];
+  const fb: [number, number] = [Math.sin(bh), Math.cos(bh)], rb: [number, number] = [Math.cos(bh), -Math.sin(bh)];
+  const dx = ax - bx, dz = az - bz;
+  let best = Infinity, nx = 0, nz = 0;
+  for (const u of [fa, ra, fb, rb]) {
+    const pa = Math.abs(fa[0] * u[0] + fa[1] * u[1]) * al + Math.abs(ra[0] * u[0] + ra[1] * u[1]) * aw;
+    const pb = Math.abs(fb[0] * u[0] + fb[1] * u[1]) * bl + Math.abs(rb[0] * u[0] + rb[1] * u[1]) * bw;
+    const dist = dx * u[0] + dz * u[1];
+    const overlap = pa + pb - Math.abs(dist);
+    if (overlap <= 0) return null; // a gap along this axis: apart
+    if (overlap < best) {
+      best = overlap;
+      const sg = dist >= 0 ? 1 : -1;
+      nx = u[0] * sg;
+      nz = u[1] * sg;
+    }
+  }
+  return { nx, nz, depth: best };
 }
 
 /** A boost pad: from s0 to s1 along the lap, `half` metres either side of the centre line. */

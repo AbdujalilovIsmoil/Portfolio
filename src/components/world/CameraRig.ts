@@ -1,6 +1,6 @@
 import { Vector3 } from "@babylonjs/core";
 import type { MutableRefObject } from "react";
-import { TRACK, groundAt, loopView, startPose } from "./Track";
+import { ROAD_HALF, TILE, TRACK, groundAt, lateralOf, loopView, startPose, trackS } from "./Track";
 import { clamp, lerp, type Ctx } from "./core";
 import type { IntroSignal } from "./introSignal";
 import type { TeleportSignal } from "./teleportSignal";
@@ -17,6 +17,8 @@ const FOV = (50 * Math.PI) / 180;
 const LOOP_FOV = (44 * Math.PI) / 180;
 /** how much wider the view gets flat out on the nitro */
 const RUSH_FOV = (9 * Math.PI) / 180;
+/** circling the winner: wider, to take in the sky */
+const WIN_FOV = (64 * Math.PI) / 180;
 
 const smooth = (k: number) => k * k * (3 - 2 * k);
 
@@ -64,6 +66,13 @@ export function buildCameraRig(
   let downhill = 0;
   /** 0 = chasing the car … 1 = watching the loop from the side */
   let loopBlend = 0;
+  /** 0 = chasing … 1 = circling the car (the race is won) */
+  let winBlend = 0;
+  let winAngle = 0;
+  const winPos = new Vector3();
+  /** where the circling camera actually is: eased after winPos, so it never jerks (round a wall, a bend) */
+  const winCam = new Vector3();
+  const winTarget = new Vector3();
   /** 0 … 1: how far past the throttle's top speed the car is going (the nitro) */
   let rush = 0;
   const view = TRACK.loop ? loopView() : null;
@@ -148,9 +157,38 @@ export function buildCameraRig(
       Vector3.LerpToRef(chasePos, sidePos, k, chasePos);
       Vector3.LerpToRef(chaseTarget, sideTarget, k, chaseTarget);
     }
+    // the race won: a slow, low circle round the car, looking a little up — the fireworks behind it
+    if (v.celebrate) {
+      if (winBlend === 0) winAngle = v.heading + Math.PI;
+      winBlend = Math.min(1, winBlend + delta / 2.2);
+      winAngle += delta * 0.32;
+      const r = 8.5 - smooth(winBlend) * 1.5;
+      winPos.set(player.x + Math.sin(winAngle) * r, player.y + 1.3, player.z + Math.cos(winAngle) * r);
+      // kept between the walls (it would swing through them, or the grandstand): along the road, it
+      // slides in towards the middle as it comes round to the side
+      // (pulled straight in across the road by just the overshoot — continuous: snapping it to the
+      // centre line's samples, 2 m apart, held it still and then jumped it, a stutter)
+      const at = trackS(winPos.x, winPos.z, hint);
+      const lat = lateralOf(winPos.x, winPos.z, at.i);
+      const edge = ROAD_HALF * TILE - 1.4;
+      if (Math.abs(lat) > edge) {
+        const h = TRACK.samples[at.i].heading;
+        const over = lat - clamp(lat, -edge, edge);
+        winPos.x -= Math.cos(h) * over;
+        winPos.z += Math.sin(h) * over;
+      }
+      winPos.y = Math.max(winPos.y, groundAt(winPos.x, winPos.z, hint).y + 1.1);
+      // (low and looking up: the car against the sky, where the fireworks are)
+      winTarget.set(player.x, player.y + 3.4, player.z);
+      if (winBlend <= delta / 2.2 + 1e-6) winCam.copyFrom(winPos);
+      else Vector3.LerpToRef(winCam, winPos, 1 - Math.pow(0.03, delta), winCam);
+      const k = smooth(winBlend);
+      Vector3.LerpToRef(chasePos, winCam, k, chasePos);
+      Vector3.LerpToRef(chaseTarget, winTarget, k, chaseTarget);
+    } else winBlend = 0;
     // (flat out on the nitro the view widens a little: you feel the speed)
     rush = lerp(rush, clamp((speed - 37) / 46, 0, 1), 1 - Math.pow(0.2, delta));
-    camera.fov = lerp(FOV + rush * RUSH_FOV, LOOP_FOV, smooth(loopBlend));
+    camera.fov = lerp(lerp(FOV + rush * RUSH_FOV, LOOP_FOV, smooth(loopBlend)), WIN_FOV, smooth(winBlend));
 
     // scripted fly-in the moment the player presses Start
     if (introRef.current.value !== lastIntro) {

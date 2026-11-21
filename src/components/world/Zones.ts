@@ -53,7 +53,8 @@ export interface Zone {
 
 /** Where the start straight ends: the first bend of the track being driven. */
 export function mainStraightEnd() {
-  const bend = TRACK.pieces.find((p) => /^[RLH]/.test(p.cmd));
+  // (the first bend — or the first dive underground: nothing is built beside a cutting)
+  const bend = TRACK.pieces.find((p) => /^[RLH]/.test(p.cmd) || p.cmd === "SUB" || p.cmd === "TUN");
   return bend ? bend.s0 : TRACK.length;
 }
 
