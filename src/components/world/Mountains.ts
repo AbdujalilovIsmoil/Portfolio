@@ -28,10 +28,10 @@ function ridged(x: number, y: number, px: number) {
  * a heightfield between 300 m and 520 m out, with rock, scree, grassy foothills and snow caps
  * coloured by height and slope.
  */
-export function buildMountains(ctx: Ctx, parent: Node, centre: { x: number; y: number; z: number }) {
-  const SEG_A = ctx.lowPower ? 220 : 360; // around
-  const SEG_R = ctx.lowPower ? 18 : 28; // outwards
-  const R0 = 300, R1 = 520;
+export function buildMountains(ctx: Ctx, parent: Node, centre: { x: number; y: number; z: number }, radii = { inner: 300, outer: 520 }) {
+  const SEG_A = 360; // around
+  const SEG_R = 28; // outwards
+  const R0 = radii.inner, R1 = radii.outer;
   const pos: number[] = [];
   const col: number[] = [];
   const idx: number[] = [];

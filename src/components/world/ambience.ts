@@ -1,4 +1,4 @@
-import { peekCtx } from "./footstepSynth";
+import { peekCtx } from "./sound";
 import { hash, type Ctx } from "./core";
 
 /**

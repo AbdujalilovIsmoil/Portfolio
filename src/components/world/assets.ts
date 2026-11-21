@@ -1,5 +1,5 @@
 import "@babylonjs/loaders/glTF";
-import { AssetContainer, DracoCompression, Light, MeshoptCompression, PBRMaterial, SceneLoader, TransformNode, type Node, type Scene } from "@babylonjs/core";
+import { AssetContainer, DracoCompression, InstancedMesh, Light, Matrix, Mesh, MeshoptCompression, PBRMaterial, Quaternion, SceneLoader, TransformNode, Vector3, type Node, type Scene } from "@babylonjs/core";
 import { place, type Ctx, type PlaceOpts } from "./core";
 import { trackLoad } from "./loadingSignal";
 
@@ -36,6 +36,11 @@ export interface ModelOpts extends PlaceOpts {
   clone?: boolean;
   /** never hold back the start button for this model (decor that may pop in a moment later) */
   background?: boolean;
+  /**
+   * one of many copies of the same model (trees, tiles, billboards…): GPU instances of shared meshes —
+   * all the copies of a part are drawn in one go (and can switch to coarser levels far away)
+   */
+  instanced?: boolean;
 }
 
 let critical = false;
@@ -53,7 +58,7 @@ export function instantiate(ctx: Ctx, file: string, parent: Node, o: ModelOpts =
 
 async function doInstantiate(ctx: Ctx, file: string, parent: Node, o: ModelOpts) {
   const container = await loadContainer(ctx, file);
-  const res = container.instantiateModelsToScene((n) => n, !!o.clone);
+  const res = container.instantiateModelsToScene((n) => n, !!o.clone, { doNotInstantiate: !o.instanced || !!o.clone });
   const holder = new TransformNode("model", ctx.scene);
   place(ctx, holder, { ...o, parent });
   for (const r of res.rootNodes) {
@@ -64,6 +69,7 @@ async function doInstantiate(ctx: Ctx, file: string, parent: Node, o: ModelOpts)
   }
   for (const m of holder.getChildMeshes()) {
     m.receiveShadows = true;
+    if (m instanceof InstancedMesh) m.sourceMesh.receiveShadows = true;
     if (o.cast && ctx.shadow) ctx.shadow.addShadowCaster(m);
     if (m.material instanceof PBRMaterial) {
       m.material.maxSimultaneousLights = 8;
@@ -75,9 +81,61 @@ async function doInstantiate(ctx: Ctx, file: string, parent: Node, o: ModelOpts)
   return holder;
 }
 
+/**
+ * Many copies of one model that never move (road tiles, billboards, grandstands, flags…): each of the
+ * model's meshes is drawn once for all of them, as thin instances — the copies cost the CPU nothing
+ * from frame to frame. Resolves to those meshes.
+ */
+export function thinCopies(ctx: Ctx, file: string, parent: Node, places: { pos: [number, number, number]; yaw: number; scale: number }[], o: { cast?: boolean; background?: boolean } = {}) {
+  const p = doThinCopies(ctx, file, parent, places, o);
+  return critical && !o.background ? trackLoad(p) : p;
+}
+
+async function doThinCopies(ctx: Ctx, file: string, parent: Node, places: { pos: [number, number, number]; yaw: number; scale: number }[], o: { cast?: boolean }) {
+  if (!places.length) return [];
+  const container = await loadContainer(ctx, file);
+  const res = container.instantiateModelsToScene((n) => n, false);
+  const holder = new TransformNode("copies", ctx.scene);
+  for (const r of res.rootNodes) {
+    (r as TransformNode).parent = holder;
+    for (const n of [r, ...r.getDescendants(false)]) if (n instanceof Light) n.dispose();
+  }
+  holder.computeWorldMatrix(true);
+  const meshes = holder.getChildMeshes(false).filter((m): m is Mesh => m instanceof Mesh && m.getTotalVertices() > 0);
+  const place = new Matrix();
+  const one = new Matrix();
+  for (const mesh of meshes) {
+    const local = mesh.computeWorldMatrix(true).clone();
+    const buf = new Float32Array(places.length * 16);
+    places.forEach((pl, i) => {
+      Matrix.ComposeToRef(new Vector3(pl.scale, pl.scale, pl.scale), Quaternion.RotationAxis(Vector3.Up(), pl.yaw), new Vector3(...pl.pos), place);
+      local.multiplyToRef(place, one);
+      one.copyToArray(buf, i * 16);
+    });
+    mesh.parent = parent;
+    mesh.position.setAll(0);
+    mesh.rotationQuaternion = null;
+    mesh.rotation.setAll(0);
+    mesh.scaling.setAll(1);
+    mesh.thinInstanceSetBuffer("matrix", buf, 16, true);
+    mesh.isPickable = false;
+    mesh.receiveShadows = true;
+    if (mesh.material instanceof PBRMaterial) {
+      mesh.material.maxSimultaneousLights = 8;
+      mesh.material.environmentIntensity = 0.25;
+    }
+    if (o.cast && ctx.shadow) ctx.shadow.addShadowCaster(mesh, false);
+    mesh.thinInstanceRefreshBoundingInfo(false);
+    mesh.freezeWorldMatrix();
+    mesh.doNotSyncBoundingInfo = true;
+  }
+  holder.dispose();
+  return meshes;
+}
+
 /** Instantiate a model and scale it so its largest side is `size`, standing on `pos` (y = its base). */
-export async function instantiateFit(ctx: Ctx, file: string, parent: Node, o: { pos: [number, number, number]; size: number; yaw?: number; anim?: boolean; clone?: boolean }) {
-  const holder = await instantiate(ctx, file, parent, { pos: [0, 0, 0], rot: [0, o.yaw ?? 0, 0], anim: o.anim, clone: o.clone });
+export async function instantiateFit(ctx: Ctx, file: string, parent: Node, o: { pos: [number, number, number]; size: number; yaw?: number; anim?: boolean; clone?: boolean; instanced?: boolean }) {
+  const holder = await instantiate(ctx, file, parent, { pos: [0, 0, 0], rot: [0, o.yaw ?? 0, 0], anim: o.anim, clone: o.clone, instanced: o.instanced });
   // Measured fully detached from `parent` — `getHierarchyBoundingVectors(true)` measures in
   // world space, so if `parent` sits away from the origin (or, rarely under React
   // StrictMode's double-mount in dev, some other in-flight instantiation's parent chain gets

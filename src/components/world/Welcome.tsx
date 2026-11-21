@@ -89,10 +89,12 @@ export default function Welcome({ onStart }: { onStart: () => void }) {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
       >
-        <Emoji>🕹️</Emoji>
-        <Heading>Welcome to this interactive world</Heading>
+        <Emoji>🏎️</Emoji>
+        <Heading>Take the race car for a lap</Heading>
         <Body>
-          Use WASD or the arrow keys to walk around the house and explore the portfolio.
+          Drive with WASD or the arrow keys — on a phone, the stick (Shift — boost, Space — handbrake).
+          My experience, projects and skills come up on screen as you drive past their billboards.
+          The pit garages by the start hold two mini-games.
         </Body>
         {!ready && (
           <ProgressTrack>

@@ -25,7 +25,7 @@ const GlobalStyle = createGlobalStyle`
     --hud-text: #ffffff;
   }
 
-  /* Day mode (sun in the header toggle): light glass UI over the bright sky. */
+  /* The light glass UI over the bright day sky (the page is always data-theme="light"). */
   :root[data-theme="light"] {
     --bg-elevated: #fbfcff;
     --surface: rgba(255, 255, 255, 0.6);

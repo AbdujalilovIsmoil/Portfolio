@@ -50,7 +50,7 @@ export function buildBirds(ctx: Ctx, parent: Node, centre: { x: number; y: numbe
   const root = group(ctx, { parent });
   const body = lit(ctx, { color: "#1b2233", rough: 0.6, double: true });
   const belly = lit(ctx, { color: "#d9cfc0", rough: 0.8 });
-  const N = ctx.lowPower ? 6 : 10;
+  const N = 10;
   const birds = Array.from({ length: N }, (_, i) => ({
     ...swallow(ctx, root, body, belly),
     r: 8 + hash(i, 1) * 22,

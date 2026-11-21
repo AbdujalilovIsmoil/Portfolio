@@ -179,7 +179,7 @@ export function buildSky(ctx: Ctx, parent: Node) {
   const cloudDay = new Color3(1, 1, 1);
   const cloudNight = Color3.FromHexString("#3a4561");
   ctx.onFrame(() => {
-    // also drawn indoors: the living room's window looks out onto the garden
+    // (always outdoors now)
     const out = true;
     sky.setEnabled(out);
     day.mesh.setEnabled(out);

@@ -46,15 +46,16 @@ const Stick = styled.div`
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
 `;
 
-const JumpButton = styled.button`
+/** The touch version of the F key: read the stop you are on / start its mini-game. */
+const ActionButton = styled.button`
   width: 68px;
   height: 68px;
   border-radius: 50%;
   border: none;
   background: linear-gradient(135deg, ${({ theme }) => theme.accent}, ${({ theme }) => theme.accent2});
   color: #fff;
-  font-weight: 700;
-  font-size: 0.8rem;
+  font-weight: 800;
+  font-size: 1.3rem;
   pointer-events: auto;
   box-shadow: ${({ theme }) => theme.shadow};
 `;
@@ -235,17 +236,10 @@ export default function MobileControls() {
     return () => cancelAnimationFrame(raf);
   }, [input]);
 
-  function jumpPress() {
+  function interact() {
     // Imperative input ref, intentionally mutated outside React's render cycle.
     /* eslint-disable react-hooks/immutability */
-    input.current.jumpId++;
-    input.current.spaceHeld = true;
-    /* eslint-enable react-hooks/immutability */
-  }
-
-  function jumpRelease() {
-    /* eslint-disable react-hooks/immutability */
-    input.current.spaceHeld = false;
+    input.current.interactId++;
     /* eslint-enable react-hooks/immutability */
   }
 
@@ -258,15 +252,9 @@ export default function MobileControls() {
         <LookBase ref={lookBaseRef}>
           <LookStick style={{ transform: `translate(calc(-50% + ${lookStick.x}px), calc(-50% + ${lookStick.y}px))` }} />
         </LookBase>
-        <JumpButton
-          type="button"
-          onPointerDown={jumpPress}
-          onPointerUp={jumpRelease}
-          onPointerLeave={jumpRelease}
-          onPointerCancel={jumpRelease}
-        >
-          Jump
-        </JumpButton>
+        <ActionButton type="button" aria-label="F: show or hide the cards, or start a garage game" onPointerDown={interact}>
+          F
+        </ActionButton>
       </RightColumn>
     </Wrap>
   );

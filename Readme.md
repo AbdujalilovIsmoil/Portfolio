@@ -1,6 +1,6 @@
 # Abdujalilov Ismoil — Frontend Engineer (React)
 
-An interactive, game-like personal portfolio built with **Next.js**, **TypeScript**, **Three.js / React Three Fiber**, and **styled-components**. Instead of scrolling through sections, visitors walk a small 3D character around a compact world and approach glowing stations to open About, Resume, Portfolio, Services, Testimonials and Contact panels. Supports **dark/light themes** and **Uzbek, Russian and English** localization.
+An interactive, game-like personal portfolio built with **Next.js**, **TypeScript**, **Babylon.js** and **styled-components**. Visitors drive a race car round a circuit with bends, hairpins, two hills and a loop-the-loop; my experience, projects, skills, testimonials, achievements, education and contacts stand on billboards along the track, and each one's card comes up on screen while you are at its billboard. Concrete walls line the whole lap, so the car stays on the track — hit one hard and bits of it break off. Lap times, a minimap, and two pit garages with mini-games (a Counter-Strike style arcade game and CSS challenges).
 
 ## About Me
 
@@ -122,7 +122,7 @@ Android business management app built with React Native CLI, TypeScript and a Fe
 ## Tech Stack of This Portfolio
 
 - **Framework:** Next.js 16 (App Router, TypeScript)
-- **3D:** Three.js, @react-three/fiber, @react-three/drei
+- **3D:** Babylon.js
 - **Styling:** styled-components, CSS custom properties for theming
 - **Animation:** Framer Motion
 - **Theming:** next-themes (dark / light)
@@ -138,7 +138,7 @@ npm run build
 npm run start
 ```
 
-**Controls:** `WASD` / arrow keys to walk, `E` (or tap) to interact with a station. On touch devices a virtual joystick and interact button appear automatically.
+**Controls:** `W`/`S` gas and brake (reverse), `A`/`D` steer, `Shift` boost, `Space` handbrake (slides), `F` cards on/off — or, pulled up in front of a pit garage, its game — and `R` back onto the track. On touch devices a stick and an F button appear automatically. The minimap (top left) shows the circuit, every billboard (grey once read) and your lap time.
 
 ---
 
@@ -156,14 +156,19 @@ npm run start
 
 ## 3D assets
 
-- All models in `public/models` are compressed with `node scripts/optimize-models.mjs` (meshopt or Draco geometry, WebP textures, very dense scans decimated). The Draco and meshopt decoders are self-hosted in `public/draco` and `public/meshopt`, so nothing is loaded from a CDN.
-- The floor plan is a central-hall villa (`plan.ts`): front door → entrance hall with the bedroom and kitchen → a furnished 9 m hall with the six themed rooms off both sides → the living room.
-- Furniture, kitchenware, lamps, flowers, shrubs and the jacaranda trees are CC0 models from [Poly Haven](https://polyhaven.com) (the tree thinned to a fraction of its leaf cards so a dozen can sway at 60 fps). The player is a Ready Player Me avatar (from the three.js examples) dressed in code; to play as yourself, drop your own Mixamo-rigged avatar in as `public/models/player.glb` — its own Idle/Walk/Run clips are used if present, otherwise a hidden three.js Xbot (`anim-male.glb`) plays neutral Mixamo clips and its pose is copied onto the avatar bone-by-bone by direction (`PoseCopy.ts`), with feet planted on the ground and procedural jump / swim poses on top.
-- The moon texture is NASA LRO imagery (via the three.js examples); the swallows are procedural (`Birds.ts`).
-- The house, its hovli (yard, garden, wall and gate) and the countryside around it are procedural — see `House.ts`, `City.ts` and `CityKit.ts`.
-- The TV film is a 100-second excerpt of *Big Buck Bunny* (© Blender Foundation, CC BY 3.0, via archive.org), re-encoded to 640p.
-- The house cat is Quaternius' "Cat" (CC0, via poly.pizza).
+- Heavy models in `public/models` are compressed with `node scripts/optimize-models.mjs` (meshopt or Draco geometry, WebP textures); the car is small enough to ship as it is. The Draco and meshopt decoders are self-hosted in `public/draco` and `public/meshopt`, so nothing is loaded from a CDN.
+- The circuit is laid from Kenney's [Racing Kit](https://kenney.nl/assets/racing-kit) (CC0) road tiles by a "turtle" (`Track.ts`: straight, bend, hairpin, ramp up, bridge, ramp down…), 22 m a tile — a 15 m wide road; the layout is one line of commands, and `tests/track.test.ts` checks that it closes, never runs into itself, that the walls on either side never touch and that every card has its billboard. The tiles are re-surfaced with asphalt and grass textures; continuous concrete walls (built along the road's frame, following the hills and turning over with the loop) keep the car on the track. The loop-the-loop (a 30 m teardrop that comes out a tile to the side of where it goes in, with a boost pad before it) is our own geometry, built to match the tiles. The grandstands, flags, light gantries, billboards and pit garages are Racing Kit models too (`RaceTrack.ts`, `RaceInfo.ts`); the kit's `.gltf` files are packed into self-contained `.glb`s.
+- The trees (jacaranda), shrubs and flowers are CC0 models from [Poly Haven](https://polyhaven.com), life size.
+- The car is Kenney's "race" from the [Car Kit](https://kenney.nl/assets/car-kit) (CC0), with its texture embedded. Driving (arcade physics; up and down the hills on the road's measured height profile, so kerbs and knocks against the walls never throw it in the air; round the loop held to the road, gravity slowing it on the way up; wheel spin and steering, body roll, tyre smoke, brake lights) is in `Car.ts`. Hitting a wall breaks bits of concrete, paint and road off it — as many, as big and as fast as the hit was hard — with dust, sparks and a crack left in the wall (`Debris.ts`, pooled: nothing is allocated while you drive). The chase camera keeps the same distance at every speed (only its swing round the car is smoothed), its spring arm only minds the hills, and on the loop it watches from the side.
+- Smooth running: the start button waits until every model is in and every shader is compiled (each mesh's material and the shadow casters' depth pass), so nothing compiles mid-drive; shadows are cascaded, redrawn every frame and stabilized (they don't crawl or pop as you drive); the lawn is pushed back in depth under the tiles' own grass so the two never flicker; the resolution only drops after seconds of low frame rate, and never see-saws.
+- Light on weak hardware (integrated Intel / AMD graphics on Windows laptops included), with the same world everywhere — every model, the shadows, the effects:
+  - the dense plant scans are thinned out: the shrubs and flowers by meshoptimizer (`scripts/simplify-vegetation.mjs`, 3–5× fewer triangles, the same look), the trees with two coarser levels made at load time by vertex clustering (`lod.ts`), swapped in by distance — 7–8 million triangles a frame became about half a million;
+  - everything that repeats is drawn in one go: each tree is one instance of a single tree mesh, and the road tiles, billboards, grandstands, flags and gantries are thin instances (no per-copy CPU cost); shrubs and flowers are thin instances in patches, so the patches off screen are skipped;
+  - the camera's spring arm reads the track's own height profile instead of casting rays, and the sky's two fill lights are one (the same light, one less per pixel);
+  - `performanceTier.ts` sorts the device (GPU name, cores, memory) into high / medium / low: a weaker one renders at a lower resolution, with fewer and smaller shadow maps, its trees going coarse nearer — `?quality=low|medium|high` forces a level. Where the browser only offers WebGL 1 (old drivers), one still shadow map over the whole circuit stands in for the cascades.
+- The engine sound is a real recording: "Racing car engine sound loops" (made for banditracer.eu from a public-domain recording), CC0, from [OpenGameArt](https://opengameart.org/content/racing-car-engine-sound-loops), looped with cross-faded ends and pitched with the speed (`sound.ts`).
+- What you read is all in `content.ts`; `Zones.ts` spreads it round the lap and the billboards are painted on canvases (`billboards.ts`).
+- It is always a sunny day. The sky, the mountains (a procedural heightfield, `Mountains.ts`) and the swallows (`Birds.ts`) are procedural.
+- The Arcade game's soldiers are the three.js examples' "Soldier" (`soldier.glb`).
 - Append `?debug` to the URL to get `window.__world` in a production build (used for automated checks).
-- Head tracking (header button with a face): MediaPipe Face Landmarker, self-hosted in `public/mediapipe` (wasm + `face_landmarker.task`, Apache-2.0). Runs only after the user clicks it; nothing leaves the browser.
-- Mountains are a procedural heightfield (`Mountains.ts`); rooms' plain geometry is merged per material at load (`staticMerge.ts`).
 - Perf test on battery: macOS/Chrome cap rendering at 30 Hz, so run `UNCAPPED=1 npm run test:perf` (or plug in) for meaningful numbers.

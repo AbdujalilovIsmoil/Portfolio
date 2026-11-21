@@ -1,32 +1,41 @@
 import type { Metadata } from "next";
-import { Poppins, Raleway, Roboto } from "next/font/google";
+import localFont from "next/font/local";
 import Script from "next/script";
 import StyledComponentsRegistry from "@/lib/registry";
 import Providers from "./providers";
 
-const roboto = Roboto({
+// Self-hosted (latin subset): next/font/google breaks under Turbopack with multi-weight queries and
+// needs network access at dev/build time.
+const roboto = localFont({
   variable: "--font-roboto",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "700", "900"],
+  src: "./fonts/Roboto.woff2",
+  weight: "100 900",
+  display: "swap",
 });
 
-const poppins = Poppins({
+const poppins = localFont({
   variable: "--font-poppins",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  src: [
+    { path: "./fonts/Poppins-300.woff2", weight: "300", style: "normal" },
+    { path: "./fonts/Poppins-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/Poppins-500.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/Poppins-600.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/Poppins-700.woff2", weight: "700", style: "normal" },
+  ],
+  display: "swap",
 });
 
-const raleway = Raleway({
+const raleway = localFont({
   variable: "--font-raleway",
-  subsets: ["latin"],
-  // Raleway is a variable font: one file covers every weight. Listing weights explicitly makes
-  // Turbopack on Vercel fail ("next/font/google queries have exactly one entry").
+  src: "./fonts/Raleway.woff2",
+  weight: "100 900",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
   title: "Interactive 3D World",
   description:
-    "An interactive, walkable 3D portfolio built with Next.js and Babylon.js.",
+    "An interactive 3D portfolio you explore by car, built with Next.js and Babylon.js.",
   icons: {
     icon: "/favicon.png",
     apple: "/apple-touch-icon.png",
@@ -40,18 +49,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      data-theme="light"
       suppressHydrationWarning
       className={`${roboto.variable} ${poppins.variable} ${raleway.variable}`}
     >
       <head>
-        {/* apply the saved day/night choice before first paint (see components/world/timeOfDay.ts) */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try{document.documentElement.dataset.theme=localStorage.getItem("world-time-of-day")==="night"?"dark":"light"}catch(e){}`,
-          }}
-        />
-        {/* start downloading the models the start screen waits for while the 3D engine is still loading */}
-        {["player", "anim-male", "chair", "mug", "vase"].map((m) => (
+        {/* start downloading the car (the start screen waits for it) while the 3D engine is still loading */}
+        {["race"].map((m) => (
           <link key={m} rel="preload" as="fetch" href={`/models/${m}.glb`} crossOrigin="anonymous" />
         ))}
       </head>

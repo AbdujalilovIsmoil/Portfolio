@@ -1,7 +1,6 @@
 /**
- * Frame-rate regression test. Starts the production server, walks the player through the whole
- * building (office → corridor → stairs → street) in a real Chrome, and fails if the game drops
- * below the targets.
+ * Frame-rate regression test. Starts the production server, drives the car out of the plaza and
+ * round a corner in a real Chrome, and fails if the game drops below the targets.
  *
  *   npm run build && npm run test:perf
  *
@@ -62,9 +61,9 @@ try {
   await sleep(25000); // background model loading + shader warm-up finish
 
   const phases = [
-    ["office walk", "KeyW", 3000],
-    ["office back", "KeyS", 3000],
-    ["strafe", "KeyD", 2000],
+    ["drive", "KeyW", 3500],
+    ["brake/reverse", "KeyS", 3000],
+    ["steer", "KeyD", 2000],
   ];
   const results = [];
   const collect = async (label) => {

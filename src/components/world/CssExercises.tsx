@@ -169,7 +169,7 @@ export default function CssExercises({ signalRef }: { signalRef: React.MutableRe
     <>
       <Hint $on={state.near}>
         <Key>F</Key>
-        Computer: CSS exercises
+        CSS challenges
       </Hint>
       {state.open && <Workspace onClose={() => endWork(signalRef, input)} />}
     </>

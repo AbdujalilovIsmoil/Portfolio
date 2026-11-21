@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "legacy-static/**",
+    // Vendored third-party bundles (Draco, MediaPipe) — not our code.
+    "public/**",
   ]),
 ]);
 

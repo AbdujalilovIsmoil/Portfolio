@@ -1,174 +1,173 @@
-import { Ray, Vector3 } from "@babylonjs/core";
+import { Vector3 } from "@babylonjs/core";
 import type { MutableRefObject } from "react";
+import { TRACK, groundAt, loopView, startPose } from "./Track";
 import { clamp, lerp, type Ctx } from "./core";
-import { ROOM_H } from "./Room";
-import { CITY_Y } from "./Stairs";
-import { isOutdoors } from "./cityLayout";
 import type { IntroSignal } from "./introSignal";
 import type { TeleportSignal } from "./teleportSignal";
 import type { WorldInput } from "./WorldInputContext";
 
-const RADIUS = 6.0;
-const CAR_RADIUS = 8.5;
-/** Pull the hit point back this far so the camera sits just in front of the wall, not on it. */
-const WALL_MARGIN = 0.25;
-/** Absolute floor on the arm — keeps the camera from ever fully collapsing onto the pivot. */
-const MIN_RADIUS = 0.8;
-const INTRO_DURATION = 2.2;
-const IDLE_DELAY = 9;
-const IDLE_ORBIT_SPEED = 0.055;
+/** How far behind the car the camera sits — always, at any speed. */
+const RADIUS = 9.5;
+/** Pull the hit point back this far so the camera sits just in front of a hill, not inside it. */
+const WALL_MARGIN = 0.3;
+const MIN_RADIUS = 2.5;
+const INTRO_DURATION = 2.8;
+const FOV = (50 * Math.PI) / 180;
+/** The loop is watched from the side through a slightly longer lens. */
+const LOOP_FOV = (44 * Math.PI) / 180;
 
+const smooth = (k: number) => k * k * (3 - 2 * k);
+
+/**
+ * Chase camera: behind the car and a little above, swinging round behind it whenever it drives
+ * (the mouse / look stick can look around; it eases back once you drive on). It keeps the same
+ * distance at every speed: only its swing round the car is smoothed, never its distance, so the car
+ * doesn't shrink away as you speed up. A spring arm keeps it in front of hills, and it never sinks
+ * into one (both from the track's own height profile: no ray casts). On the loop-the-loop it moves
+ * out to the side and watches you go round.
+ */
 export function buildCameraRig(
   ctx: Ctx,
   deps: { input: MutableRefObject<WorldInput>; teleportRef: MutableRefObject<TeleportSignal>; introRef: MutableRefObject<IntroSignal> }
 ) {
   const { input, teleportRef, introRef } = deps;
   const { camera, player } = ctx;
-  const target = new Vector3();
+  const v = ctx.vehicle;
   const desired = new Vector3();
   const lookTarget = new Vector3();
+  /** where the spring arm starts: just above the car itself (the look-ahead point may be inside a hill) */
+  const pivot = new Vector3();
   const introStart = new Vector3();
   const rayDir = new Vector3();
-  const ray = new Ray(Vector3.Zero(), Vector3.Up(), 1);
-  let yaw = 0;
-  let pitch = 0;
+  let hint = -1;
+  /** the camera and what it looks at, relative to the car (smoothed): the car's own motion is never lagged */
+  const offset = new Vector3();
+  const lookOffset = new Vector3();
+  const chasePos = new Vector3();
+  const chaseTarget = new Vector3();
+  const sidePos = new Vector3();
+  const sideTarget = new Vector3();
+  const target = new Vector3(player.x, 1.2, player.z);
+  input.current.look.yaw = startPose().heading + Math.PI;
+  let yaw = input.current.look.yaw;
+  let pitch = input.current.look.pitch;
   let lastTeleport = teleportRef.current.value;
   let lastIntro = introRef.current.value;
   let introActive = false;
   let introElapsed = 0;
-  let idleTime = 0;
-  let idleOrbit = 0;
-  let lastInputYaw = input.current.look.yaw;
-  let lastInputPitch = input.current.look.pitch;
-  let lastSeenJumpId = input.current.jumpId;
-  // The arm's current reach in world units — a spring-arm collision distance,
-  // kept separate from the per-frame position lerp below so a wall can pull
-  // the camera in the same instant it appears (never show through a wall),
-  // while opening back up afterwards still catches up quickly: it must never
-  // visibly lag behind the player, just avoid an instant pop.
   let armDist = RADIUS;
-  let seatYaw0 = 0;
+  let lead = 0;
+  let primed = false;
+  /** extra pitch while the car goes downhill, so the arm stays clear of the road rising behind it */
+  let downhill = 0;
+  /** 0 = chasing the car … 1 = watching the loop from the side */
+  let loopBlend = 0;
+  const view = TRACK.loop ? loopView() : null;
+  const loopHeading = TRACK.loop ? Math.atan2(TRACK.loop.fx, TRACK.loop.fz) : 0;
 
-  ctx.onFrame((delta, now) => {
-    // Idle cinematic orbit: after a stretch with no input, drift around the character.
-    const { move, joystick: joy, lookJoystick: lookJoy } = input.current;
-    const yawMoved = Math.abs(input.current.look.yaw - lastInputYaw) > 0.0005;
-    const pitchMoved = Math.abs(input.current.look.pitch - lastInputPitch) > 0.0005;
-    const jumped = input.current.jumpId !== lastSeenJumpId;
-    lastInputYaw = input.current.look.yaw;
-    lastInputPitch = input.current.look.pitch;
-    lastSeenJumpId = input.current.jumpId;
-
-    const hasActivity =
-      move.forward || move.backward || move.left || move.right ||
-      joy.x !== 0 || joy.y !== 0 || lookJoy.x !== 0 || lookJoy.y !== 0 ||
-      yawMoved || pitchMoved || jumped;
-
-    if (hasActivity || introActive) {
-      idleTime = 0;
-      idleOrbit = 0;
-    } else {
-      idleTime += delta;
-      if (idleTime > IDLE_DELAY) idleOrbit += delta * IDLE_ORBIT_SPEED;
-    }
-
-    const driving = ctx.vehicle.driving;
-    if (driving && Math.abs(ctx.vehicle.speed) > 1.5) {
-      // chase cam: swing behind the car
-      const look = input.current.look;
-      let diff = ctx.vehicle.heading + Math.PI - look.yaw;
+  ctx.onFrame((delta) => {
+    const look = input.current.look;
+    const speed = Math.abs(v.speed);
+    const onLoop = v.loop >= 0;
+    if (onLoop) {
+      // on the loop the car turns over: wait behind the way it comes out
+      let diff = loopHeading + Math.PI - look.yaw;
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
-      look.yaw += diff * Math.min(1, delta * 2.4);
-      lastInputYaw = look.yaw;
+      look.yaw += diff * Math.min(1, delta * 3);
+    } else if (speed > 1.2) {
+      let diff = v.heading + Math.PI - look.yaw;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      look.yaw += diff * Math.min(1, delta * (1.2 + Math.min(speed, 20) * 0.07));
     }
-    const targetYaw = input.current.look.yaw + idleOrbit;
-    const targetPitch = idleOrbit > 0 ? input.current.look.pitch + Math.sin(now * 0.2) * 0.04 : input.current.look.pitch;
-
     const smoothing = 1 - Math.pow(0.0015, delta);
-    yaw = lerp(yaw, targetYaw, smoothing);
-    pitch = lerp(pitch, targetPitch, smoothing);
+    yaw = lerp(yaw, look.yaw, smoothing);
+    pitch = lerp(pitch, look.pitch, smoothing);
 
-    const R = driving ? CAR_RADIUS : RADIUS;
-    const horizontal = R * Math.cos(pitch);
-    desired.set(player.x + horizontal * Math.sin(yaw), player.y + R * Math.sin(pitch), player.z + horizontal * Math.cos(yaw));
-    lookTarget.set(player.x, player.y + 1.1, player.z);
+    downhill = lerp(downhill, Math.max(0, -v.slope) * 1.2, 1 - Math.pow(0.02, delta));
+    const pitchNow = Math.min(pitch + downhill, 1.3);
+    const horizontal = RADIUS * Math.cos(pitchNow);
+    // look a little ahead of the car when it is moving — up or down the slope, along the road
+    lead = lerp(lead, clamp(v.speed * 0.14, -1.5, 3.5), 1 - Math.pow(0.05, delta));
+    lookTarget.set(player.x + Math.sin(v.heading) * lead, player.y + 1.25 + Math.tan(v.slope) * lead, player.z + Math.cos(v.heading) * lead);
+    pivot.set(player.x, player.y + 1.6, player.z);
+    desired.set(pivot.x + horizontal * Math.sin(yaw), pivot.y + RADIUS * Math.sin(pitchNow), pivot.z + horizontal * Math.cos(yaw));
 
-    // Spring-arm collision: cast a ray from the player's head toward the
-    // orbit position and see how far it actually gets before a wall (or any
-    // other pickable geometry — furniture included) blocks it. The player's
-    // own body is excluded (isPickable = false in AnimatedCharacter.ts) so
-    // the arm can't detect itself and collapse to 0 — the classic spring-arm
-    // bug. Because the shortened arm still lands on this exact ray, the
-    // camera keeps looking at the player from the same angle whether it's at
-    // full reach in the open or pulled in tight at a doorway.
-    rayDir.copyFrom(desired).subtractInPlace(lookTarget);
+    // spring arm: stop short of a hill between the car and the camera (props, walls and gantries
+    // don't count: the camera looks over them or passes under them) — stepping out along the arm
+    // until a point would be in the ground
+    rayDir.copyFrom(desired).subtractInPlace(pivot);
     const fullDist = rayDir.length();
     let allowed = fullDist;
     if (fullDist > 1e-4) {
       rayDir.scaleInPlace(1 / fullDist);
-      ray.origin.copyFrom(lookTarget);
-      ray.direction.copyFrom(rayDir);
-      ray.length = fullDist;
-      const hit = ctx.scene.pickWithRay(ray);
-      if (hit?.hit && hit.distance > 0) allowed = Math.max(MIN_RADIUS, hit.distance - WALL_MARGIN);
+      for (let d = 0.75; d < fullDist + 0.75; d += 0.75) {
+        const k = Math.min(d, fullDist);
+        const x = pivot.x + rayDir.x * k, y = pivot.y + rayDir.y * k, z = pivot.z + rayDir.z * k;
+        const g = groundAt(x, z, hint);
+        hint = g.i;
+        if (y < g.y + 0.6) {
+          allowed = Math.max(MIN_RADIUS, k - 0.75 - WALL_MARGIN);
+          break;
+        }
+      }
     }
-
     const teleporting = teleportRef.current.value !== lastTeleport;
-    // Pull in the instant a wall appears; ease back out so it doesn't pop.
-    armDist = allowed < armDist || teleporting ? allowed : lerp(armDist, allowed, 1 - Math.pow(0.02, delta));
-    armDist = clamp(armDist, MIN_RADIUS, Math.max(fullDist, MIN_RADIUS));
-    if (fullDist > 1e-4) desired.set(lookTarget.x + rayDir.x * armDist, lookTarget.y + rayDir.y * armDist, lookTarget.z + rayDir.z * armDist);
+    // pulls in quickly but smoothly, eases back out
+    armDist = teleporting ? allowed : lerp(armDist, allowed, 1 - Math.pow(allowed < armDist ? 1e-5 : 0.02, delta));
+    armDist = clamp(armDist, Math.min(MIN_RADIUS, fullDist), Math.max(fullDist, MIN_RADIUS));
+    if (fullDist > 1e-4) desired.set(pivot.x + rayDir.x * armDist, pivot.y + rayDir.y * armDist, pivot.z + rayDir.z * armDist);
+    // never inside a hill or a bridge behind the car
+    desired.y = Math.max(desired.y, groundAt(desired.x, desired.z, hint).y + 1.0);
 
-    // Safety net only — the raycast above already keeps the camera out of
-    // floors/ceilings/walls; this just covers the open street outside.
-    const floorY = ctx.groundY(player.x, player.z);
-    const outdoors = isOutdoors(player.x, player.z);
-    desired.y = outdoors ? Math.max(desired.y, CITY_Y + 0.8) : clamp(desired.y, floorY + 0.7, ROOM_H - 0.35);
+    // the chase position, relative to the car: smoothed as an offset, so it swings but never lags behind
+    const snap = teleporting || !primed;
+    desired.subtractToRef(player, rayDir);
+    if (snap) offset.copyFrom(rayDir);
+    else Vector3.LerpToRef(offset, rayDir, 1 - Math.pow(0.0006, delta), offset);
+    lookTarget.subtractToRef(player, rayDir);
+    if (snap) lookOffset.copyFrom(rayDir);
+    else Vector3.LerpToRef(lookOffset, rayDir, 1 - Math.pow(0.0008, delta), lookOffset);
+    primed = true;
+    player.addToRef(offset, chasePos);
+    player.addToRef(lookOffset, chaseTarget);
 
-    // Scripted fly-in the moment the player presses "Boshlash".
+    // on the loop: out to the side, watching it (a little ahead of the loop's middle, towards the car);
+    // off it, a cut straight back behind the car (easing back would fly the camera through the loop)
+    loopBlend = teleporting || !onLoop ? (onLoop ? 1 : 0) : lerp(loopBlend, 1, 1 - Math.pow(0.015, delta));
+    if (view && loopBlend > 0.001) {
+      const along = (player.x - view.centre.x) * view.fx + (player.z - view.centre.z) * view.fz;
+      sidePos.set(view.cam.x + view.fx * along * 0.3, view.cam.y + (player.y - view.centre.y) * 0.15, view.cam.z + view.fz * along * 0.3);
+      sideTarget.set(lerp(view.centre.x, player.x, 0.6), lerp(view.centre.y, player.y + 1, 0.6), lerp(view.centre.z, player.z, 0.6));
+      const k = smooth(loopBlend);
+      Vector3.LerpToRef(chasePos, sidePos, k, chasePos);
+      Vector3.LerpToRef(chaseTarget, sideTarget, k, chaseTarget);
+    }
+    camera.fov = lerp(FOV, LOOP_FOV, smooth(loopBlend));
+
+    // scripted fly-in the moment the player presses Start
     if (introRef.current.value !== lastIntro) {
       lastIntro = introRef.current.value;
       introActive = true;
       introElapsed = 0;
-      introStart.set(6, ROOM_H - 0.4, 4.5);
+      introStart.set(player.x + 40, player.y + 48, player.z - 70);
     }
-
-    // seated: eye-level view in the direction the seat faces (e.g. at the TV); the mouse can still
-    // look around a little
-    if (ctx.seat && !introActive) {
-      const st = ctx.seat;
-      const look = input.current.look.yaw - seatYaw0;
-      const fy = st.yaw + clamp(look, -1, 1) * 0.8;
-      const eye = 1.12;
-      desired.set(player.x + Math.sin(st.yaw) * 0.12, player.y + eye + 0.05, player.z + Math.cos(st.yaw) * 0.12);
-      lookTarget.set(desired.x + Math.sin(fy) * 4, desired.y - 0.15 + clamp(-input.current.look.pitch, -0.5, 0.5), desired.z + Math.cos(fy) * 4);
-      Vector3.LerpToRef(camera.position, desired, 1 - Math.pow(0.002, delta), camera.position);
-      Vector3.LerpToRef(target, lookTarget, 1 - Math.pow(0.002, delta), target);
-      camera.setTarget(target);
-      return;
-    }
-    seatYaw0 = input.current.look.yaw;
     if (introActive) {
       introElapsed += delta;
       const p = Math.min(1, introElapsed / INTRO_DURATION);
       const eased = 1 - Math.pow(1 - p, 3);
-      Vector3.LerpToRef(introStart, desired, eased, camera.position);
-      target.copyFrom(lookTarget);
+      Vector3.LerpToRef(introStart, chasePos, eased, camera.position);
+      target.copyFrom(chaseTarget);
       if (p >= 1) {
         introActive = false;
         lastTeleport = teleportRef.current.value;
       }
-    } else if (teleportRef.current.value !== lastTeleport) {
-      // A teleport moves the character hundreds of units in one frame: snap.
-      lastTeleport = teleportRef.current.value;
-      camera.position.copyFrom(desired);
-      target.copyFrom(lookTarget);
     } else {
-      Vector3.LerpToRef(camera.position, desired, 1 - Math.pow(0.0008, delta), camera.position);
-      Vector3.LerpToRef(target, lookTarget, 1 - Math.pow(0.001, delta), target);
+      if (teleporting) lastTeleport = teleportRef.current.value;
+      camera.position.copyFrom(chasePos);
+      target.copyFrom(chaseTarget);
     }
-
     camera.setTarget(target);
   });
 }

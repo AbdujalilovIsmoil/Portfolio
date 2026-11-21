@@ -17,8 +17,10 @@ export interface WorldInput {
   lookJoystick: { x: number; y: number };
   /** Increments on every jump request (key press / tap) — consumers compare against their own last-seen value instead of mutating this ref. */
   jumpId: number;
-  /** Increments on every interact (F) press — enter/exit vehicle. */
+  /** Increments on every interact (F) press — read a stop, start a mini-game. */
   interactId: number;
+  /** Increments on every R press — put the car back at the start. */
+  resetId: number;
   /** Increments on every E press — open/close doors. */
   doorId: number;
   /** True while a UI game owns the keyboard (movement/jump/interact are ignored). */
@@ -45,7 +47,7 @@ const KEY_MAP: Record<string, keyof MoveState> = {
 const DEG = Math.PI / 180;
 // Kept low enough that the horizon (and the sky above it — moon, stars, comets)
 // is actually visible by default, not just when the player looks up.
-const INITIAL_PITCH = 14 * DEG;
+const INITIAL_PITCH = 17 * DEG;
 export const PITCH_MIN = 8 * DEG;
 export const PITCH_MAX = 78 * DEG;
 const LOOK_SENSITIVITY = 0.0022;
@@ -59,6 +61,7 @@ export function WorldInputProvider({ children }: { children: React.ReactNode }) 
     lookJoystick: { x: 0, y: 0 },
     jumpId: 0,
     interactId: 0,
+    resetId: 0,
     doorId: 0,
     locked: false,
     spaceHeld: false,
@@ -72,7 +75,9 @@ export function WorldInputProvider({ children }: { children: React.ReactNode }) 
       if (key) ref.current.move[key] = true;
       if (e.code === "KeyF" && !e.repeat) ref.current.interactId++;
       if (e.code === "KeyE" && !e.repeat) ref.current.doorId++;
+      if (e.code === "KeyR" && !e.repeat) ref.current.resetId++;
       if (e.code === "Space") {
+        e.preventDefault(); // (no page scroll)
         if (!e.repeat) ref.current.jumpId++;
         ref.current.spaceHeld = true;
       }

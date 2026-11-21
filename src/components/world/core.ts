@@ -23,13 +23,6 @@ import {
 } from "@babylonjs/core";
 
 export type V3 = [number, number, number];
-/** A DOM overlay pinned to a scene node — rendered by React via <HtmlAnchor>. */
-export type Anchor =
-  | { kind: "portal"; node: TransformNode; label: string; color: string }
-  | { kind: "panel"; node: TransformNode; eyebrow: string; title: string; lines: string[]; accent: string; factor?: number }
-  | { kind: "holo"; node: TransformNode; title: string; lines: string[]; accent: string }
-  | { kind: "ai"; node: TransformNode };
-
 export interface Region {
   x0: number;
   x1: number;
@@ -41,7 +34,7 @@ export function inRegions(regions: Region[], x: number, z: number, m: number) {
   return regions.some((r) => x >= r.x0 + m && x <= r.x1 - m && z >= r.z0 + m && z <= r.z1 - m);
 }
 
-/** Closest walkable point (used to keep the camera inside the building). */
+/** Closest point inside the regions (kept `m` away from their edges). */
 export function nearestInRegions(regions: Region[], x: number, z: number, m: number): [number, number] {
   let best: [number, number] = [x, z];
   let bd = Infinity;
@@ -58,54 +51,74 @@ export function nearestInRegions(regions: Region[], x: number, z: number, m: num
 }
 
 export interface VehicleState {
+  /** always true: the car is the only way to get around */
   driving: boolean;
   x: number;
   z: number;
+  /** the way the car points (0 = +z) */
   heading: number;
+  /** m/s along the way it travels (negative when reversing) */
   speed: number;
-  /** Where Character should place the player after stepping out. */
+  /** how steep the road is along the car (radians, uphill +) */
+  slope: number;
+  /** how far along the lap it is (metres from the lap's start) */
+  s: number;
+  /** on the loop-the-loop: how far round (0–1); −1 when not on it */
+  loop: number;
   exitAt: [number, number] | null;
+}
+
+/** Bits of wall and road knocked loose when the car hits something (Debris.ts). */
+export interface DebrisApi {
+  /**
+   * A hit at `p` on a surface facing `n` (into the road; `up` is the road's up) — `speed` is how fast
+   * the car was going into it (m/s), `floor` the height the bits land on.
+   */
+  hit(p: [number, number, number], n: [number, number, number], up: [number, number, number], speed: number, floor: number, carVel?: [number, number, number]): void;
+  /** Scraping along a wall at `speed` (m/s): grit and sparks, a few at a time. */
+  scrape(p: [number, number, number], n: [number, number, number], up: [number, number, number], speed: number, floor: number): void;
 }
 
 /** Shared handle every scene module receives — keeps modules free of globals. */
 export interface Ctx {
   scene: Scene;
   camera: FreeCamera;
-  lowPower: boolean;
+  /** how much the device can take (performanceTier.ts): the same world at every level, cheaper where it can't be seen */
+  quality: import("./performanceTier").Quality;
   shadow: ShadowGenerator | null;
-  /** Player world position (written by Character, read by everything reactive). */
+  /** The car's position (written by Car.ts, read by everything that reacts to where you are). */
   player: Vector3;
   overlay: HTMLElement;
   vehicle: VehicleState;
   /**
-   * Footprints the player can't walk through. With `top` (a world y) the thing is low enough to
-   * jump onto / over: above `top` it no longer blocks, and you can stand on it.
+   * Axis-aligned footprints the car can't drive through (centre and half sizes). With `above`,
+   * only while the car is higher than that (the edges of the hills and bridges).
    */
-  colliders: { x: number; z: number; hx: number; hz: number; top?: number }[];
-  /** The seat the player is sitting on (Seats.ts), if any. */
-  seat?: { x: number; z: number; yaw: number; y: number; onStand?: () => void } | null;
-  /** Walkable floor rectangles (office, doorway, corridor). */
+  colliders: { x: number; z: number; hx: number; hz: number; above?: number }[];
+  /** Where the car may go. */
   regions: Region[];
-  /** Floor height under (x, z): 0 upstairs, stepped along the stairs, -3.6 on the street. */
+  /** Ground height under (x, z) (flat: 0). */
   groundY(x: number, z: number): number;
-  /** Things you can inspect with F (frames, statues…), from every gallery room. */
+  /** The stops you can read with F (Stations.ts). */
   exhibits: { pos: [number, number]; radius: number; info: import("./exhibitSignal").ExhibitInfo; region: Region }[];
   time: number;
   /** 0 = day … 1 = night (eased; see timeOfDay.ts). Written by World.tsx every frame. */
   night: number;
-  /** 0 = indoors … 1 = out on the street (eased). Written by World.tsx every frame. */
+  /** 0 = indoors … 1 = outdoors. Always 1 now (there are no rooms); kept for the sky and sounds. */
   outdoor: number;
   /** Per-frame callback; returns a disposer. Runs in registration order. */
   onFrame(fn: (dt: number, t: number) => void): () => void;
-  /** All room lights (data only) — see World.tsx for the pooled real lights. */
+  /** All lamps (data only) — see World.tsx for the pooled real lights. */
   lights: VirtualLight[];
-  /** Run a (model-loading) task later, one at a time, so the frame rate never spikes. */
-  defer(task: () => void): void;
+  /** Run a (model-loading) task later, one at a time, so the frame rate never spikes (all of them before the start button is ready). */
+  defer(task: () => unknown): void;
   /** Callbacks run once the whole scene is built (e.g. mirror render lists). */
   afterBuild: (() => void)[];
   glowTex?: DynamicTexture;
-  /** Move the player (set by Character.ts; used by dev tooling and tests). */
+  /** Move the car (set by Car.ts; used by dev tooling and tests). */
   teleportPlayer?: (x: number, z: number) => void;
+  /** Debris on impacts (set by Debris.ts). */
+  debris?: DebrisApi;
 }
 
 /** three.js light intensities are physical (÷π on diffuse); Babylon's aren't. */
@@ -432,7 +445,7 @@ export interface VirtualLight {
   range: number;
 }
 
-/** Room / corridor light. Cheap: no shader cost until it is one of the few nearest to the player. */
+/** A lamp. Cheap: no shader cost until it is one of the few nearest to the car. */
 export function staticLight(ctx: Ctx, parent: Node, pos: V3, color: string, intensity: number, range: number) {
   const world = Vector3.TransformCoordinates(new Vector3(pos[0], pos[1], pos[2]), (parent as TransformNode).getWorldMatrix());
   ctx.lights.push({ pos: world, color: linear(color), intensity: intensity * LIGHT_SCALE, range });

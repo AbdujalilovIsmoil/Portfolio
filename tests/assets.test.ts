@@ -20,7 +20,7 @@ const extensionsOf = (file: string): string[] => {
 
 describe("3D model files", () => {
   it("every model the code references exists", () => {
-    expect(referencedModels.size).toBeGreaterThan(20);
+    expect(referencedModels.size).toBeGreaterThan(0);
     for (const m of referencedModels) expect(existsSync(join(models, m)), `${m} is missing`).toBe(true);
   });
 

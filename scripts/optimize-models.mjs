@@ -18,16 +18,11 @@ const CLI = ["--yes", "@gltf-transform/cli@4.1.1"];
 
 /** Max texture edge per model; everything else gets DEFAULT_SIZE. */
 const TEXTURE_SIZE = {
-  "mask.glb": 1024,
-  "nemetona.glb": 1024,
-  "nefertiti.glb": 1024,
-  "steampunk.glb": 1024,
-  "rolex.glb": 1024,
   "soldier.glb": 1024,
 };
 const DEFAULT_SIZE = 512;
 /** Very dense scans: decimate (the normal maps keep the surface detail). Value = target triangle ratio. */
-const SIMPLIFY = { "nemetona.glb": 0.2, "mask.glb": 0.3, "tennyson.glb": 0.4, "rolex.glb": 0.6, "ferrari.glb": 0.7 };
+const SIMPLIFY = {};
 /** Files to leave untouched. */
 const SKIP = new Set([]);
 

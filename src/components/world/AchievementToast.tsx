@@ -49,7 +49,7 @@ const Title = styled.div`
 
 export default function AchievementToast({ signalRef }: { signalRef: React.MutableRefObject<AchievementSignal> }) {
   const [shown, setShown] = useState(false);
-  const [title, setTitle] = useState("");
+  const [toast, setToast] = useState({ title: "", label: "Achievement unlocked", icon: "🏆" });
   const lastSeen = useRef(0);
 
   useEffect(() => {
@@ -59,7 +59,8 @@ export default function AchievementToast({ signalRef }: { signalRef: React.Mutab
     const tick = () => {
       if (signalRef.current.value !== lastSeen.current) {
         lastSeen.current = signalRef.current.value;
-        setTitle(signalRef.current.title);
+        const s = signalRef.current;
+        setToast({ title: s.title, label: s.label ?? "Achievement unlocked", icon: s.icon ?? "🏆" });
         setShown(true);
         if (hideTimer) clearTimeout(hideTimer);
         hideTimer = setTimeout(() => setShown(false), 3600);
@@ -75,10 +76,10 @@ export default function AchievementToast({ signalRef }: { signalRef: React.Mutab
 
   return (
     <Toast $shown={shown}>
-      <Icon>🏆</Icon>
+      <Icon>{toast.icon}</Icon>
       <Text>
-        <Label>Achievement unlocked</Label>
-        <Title>{title}</Title>
+        <Label>{toast.label}</Label>
+        <Title>{toast.title}</Title>
       </Text>
     </Toast>
   );
