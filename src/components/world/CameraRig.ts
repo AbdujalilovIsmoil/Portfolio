@@ -15,6 +15,8 @@ const INTRO_DURATION = 2.8;
 const FOV = (50 * Math.PI) / 180;
 /** The loop is watched from the side through a slightly longer lens. */
 const LOOP_FOV = (44 * Math.PI) / 180;
+/** how much wider the view gets flat out on the nitro */
+const RUSH_FOV = (9 * Math.PI) / 180;
 
 const smooth = (k: number) => k * k * (3 - 2 * k);
 
@@ -62,6 +64,8 @@ export function buildCameraRig(
   let downhill = 0;
   /** 0 = chasing the car … 1 = watching the loop from the side */
   let loopBlend = 0;
+  /** 0 … 1: how far past the throttle's top speed the car is going (the nitro) */
+  let rush = 0;
   const view = TRACK.loop ? loopView() : null;
   const loopHeading = TRACK.loop ? Math.atan2(TRACK.loop.fx, TRACK.loop.fz) : 0;
 
@@ -144,7 +148,9 @@ export function buildCameraRig(
       Vector3.LerpToRef(chasePos, sidePos, k, chasePos);
       Vector3.LerpToRef(chaseTarget, sideTarget, k, chaseTarget);
     }
-    camera.fov = lerp(FOV, LOOP_FOV, smooth(loopBlend));
+    // (flat out on the nitro the view widens a little: you feel the speed)
+    rush = lerp(rush, clamp((speed - 37) / 46, 0, 1), 1 - Math.pow(0.2, delta));
+    camera.fov = lerp(FOV + rush * RUSH_FOV, LOOP_FOV, smooth(loopBlend));
 
     // scripted fly-in the moment the player presses Start
     if (introRef.current.value !== lastIntro) {

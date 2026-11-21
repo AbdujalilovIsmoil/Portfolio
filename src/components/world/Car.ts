@@ -4,31 +4,40 @@ import { instantiate } from "./assets";
 import type { DriveSignal } from "./driveSignal";
 import { createEngineSample, peekCtx, playImpactThud, playWhoosh, type EngineSound } from "./sound";
 import type { TeleportSignal } from "./teleportSignal";
-import { SURFACE, TRACK, WALL_IN, boostPad, heightAt, lateralOf, loopPose, startPose, trackS } from "./Track";
+import { SURFACE, TRACK, WALL_IN, heightAt, lateralOf, loopPose, startPose, trackS } from "./Track";
 import type { WorldInput } from "./WorldInputContext";
 import { Instancer, clamp, disc, group, lerp, points, setEuler, unlit, type Ctx } from "./core";
 
 /** Kenney Car Kit "race" (CC0): 2.56 units long, wheels of radius 0.3, front towards +z. */
 export const CAR_FILE = "race.glb";
-const SCALE = 1.75; // → a 4.5 m race car
-const WHEEL_R = 0.3 * SCALE;
+export const SCALE = 1.75; // → a 4.5 m race car
+export const WHEEL_R = 0.3 * SCALE;
 const WHEELBASE = 1.52 * SCALE;
 
-const MAX_SPEED = 26; // m/s on the asphalt (≈ 94 km/h)
-const BOOST = 1.3; // Shift
+const MAX_SPEED = 37; // m/s on the throttle alone (≈ 133 km/h)
+/**
+ * Shift, the nitro: it goes on pulling for as long as you hold it — NITRO m/s² at MAX_SPEED, less and
+ * less the faster you go — up to TOP_SPEED (≈ 300 km/h). Let it go and the car eases back down.
+ */
+const NITRO = 13;
+export const TOP_SPEED = 83;
 const MAX_REV = 8;
 const ACCEL = 13;
-const BRAKE = 28;
+const BRAKE = 34;
 const DRAG = 6; // coasting
 const HANDBRAKE = 14;
 const MAX_STEER = 0.55;
+/** the steering lock shrinks with speed: MAX_STEER / (1 + speed / STEER_FADE) */
+const STEER_FADE = 11;
+/** The fastest the car can take a bend of radius R (m), its steering lock shrinking as it speeds up. */
+export const cornerSpeed = (R: number) => STEER_FADE * (MAX_STEER / Math.atan(WHEELBASE / R) - 1);
 /** Two collision circles, over the front and the rear axle. */
-const AXLE = 1.3;
-const BODY_R = 1.05;
+export const AXLE = 1.3;
+export const BODY_R = 1.05;
 /** How far from the centre line the car's middle can get before its side touches a wall. */
 const WALL_LIMIT = WALL_IN - 1.1;
-/** The boost pad before the loop: the speed it sends you off at, and for how long the car may go that fast. */
-const PAD_SPEED = 37;
+/** A boost pad: the speed it sends you off at (≈ 200 km/h), and for how long the car may go that fast. */
+const PAD_SPEED = 55;
 const PAD_TIME = 3;
 /** Round the top half of the loop the car never drops below this (it would fall off a real one). */
 const LOOP_MIN = 12;
@@ -81,9 +90,9 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
   let loopYaw = 0;
   let padTime = 0;
   let onPad = false;
+  let touching = false;
   const LP = TRACK.loop;
   const LP_HEADING = LP ? Math.atan2(LP.fx, LP.fz) : 0;
-  const PAD = boostPad();
   // scratch (nothing is allocated per frame)
   const qRoll = new Quaternion(), qSteer = new Quaternion(), qTmp = new Quaternion();
   const vF = new Vector3(), vU = new Vector3(), vL = new Vector3();
@@ -213,7 +222,7 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
     if (throttle > 0) s = v.speed + (s - v.speed) * 0.15;
     // gravity along the road (t is the way round the lap; the car faces loopDir · t)
     s -= 9.8 * q.t[1] * loopDir * dt;
-    s = clamp(s, -MAX_REV - 6, Math.max(MAX_SPEED * BOOST, PAD_SPEED));
+    s = clamp(s, -MAX_REV - 6, TOP_SPEED);
     // over the top half it can't stall: it would drop off a real one
     let w = s * loopDir;
     if (q.k > 0.15 && q.k < 0.85 && Math.abs(w) < LOOP_MIN) {
@@ -231,10 +240,12 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
       const pq = loopPose(clamp(loopD, 0, L.length));
       const p: [number, number, number] = [pq.pos[0] + pq.left[0] * sg * WALL_IN + pq.up[0] * SURFACE, pq.pos[1] + pq.left[1] * sg * WALL_IN + pq.up[1] * SURFACE, pq.pos[2] + pq.left[2] * sg * WALL_IN + pq.up[2] * SURFACE];
       wallHit(p, [-pq.left[0] * sg, -pq.left[1] * sg, -pq.left[2] * sg], pq.up, across, w, L.y0);
+      if (!touching) v.wallHits++;
+      touching = true;
       if (across > 4) s *= 0.8;
       loopLat = sg * WALL_LIMIT;
       loopYaw *= 0.3;
-    }
+    } else touching = false;
     v.speed = s;
     if (loopD >= L.climbOut || loopD <= L.climbIn) {
       // back on the ground: the run-out (or the run-in, rolling back)
@@ -265,19 +276,22 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
     if (Math.hypot(vF.x, vF.z) > 0.3) v.heading = Math.atan2(vF.x, vF.z);
     travel = v.heading;
     v.slope = 0;
+    v.slide = 0;
     v.loop = clamp(q.k, 0, 1);
     v.s = L.s0 + loopD;
     return true;
   };
 
-  ctx.onFrame((dt) => {
+  ctx.onFrame((frameDt) => {
+    // (the menu is open: the car holds still where it is, and goes on as it was)
+    const dt = ctx.paused ? 0 : frameDt;
     const io = input.current;
     if (io.resetId !== lastReset) {
       lastReset = io.resetId;
       if (!io.locked) reset();
     }
     const { move, joystick: joy } = io;
-    const locked = io.locked;
+    const locked = io.locked || v.frozen;
     const throttle = locked ? 0 : clamp((move.forward ? 1 : 0) - (move.backward ? 1 : 0) - joy.y, -1, 1);
     const steerIn = locked ? 0 : clamp((move.right ? 1 : 0) - (move.left ? 1 : 0) + joy.x, -1, 1);
     const handbrake = !locked && io.spaceHeld;
@@ -287,16 +301,24 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
     padTime -= dt;
 
     // ---- the pedals (gravity comes in below, along the road)
-    const top = Math.max(MAX_SPEED * (boost ? BOOST : 1), padTime > 0 ? PAD_SPEED : 0);
+    // how fast the engine will take it: MAX_SPEED; with Shift, on and on up to TOP_SPEED; just off a pad, its speed
+    const top = boost ? TOP_SPEED : Math.max(MAX_SPEED, padTime > 0 ? PAD_SPEED : 0);
     let s = v.speed;
-    if (throttle > 0) s += (s < 0 ? BRAKE : ACCEL * (boost ? 1.3 : 1)) * throttle * dt;
-    else if (throttle < 0) s -= (s > 0 ? BRAKE : ACCEL * 0.6) * -throttle * dt;
+    if (throttle > 0) {
+      if (s < 0) s += BRAKE * throttle * dt;
+      else if (s < top) {
+        // full pull up to MAX_SPEED; past it (the nitro) it fades as the speed climbs to TOP_SPEED
+        const pull = s < MAX_SPEED ? ACCEL * (boost ? 1.3 : 1) : NITRO * Math.max(0.08, 1 - (s - MAX_SPEED) / (TOP_SPEED - MAX_SPEED));
+        s = Math.min(top, s + pull * throttle * dt);
+      }
+    } else if (throttle < 0) s -= (s > 0 ? BRAKE : ACCEL * 0.6) * -throttle * dt;
     else s -= Math.sign(s) * Math.min(Math.abs(s), DRAG * dt);
     if (handbrake) s -= Math.sign(s) * Math.min(Math.abs(s), HANDBRAKE * dt);
-    if (s > top) s = Math.max(top, s - 6 * dt); // easing off a boost
+    // above it (Shift let go, a pad's push spent, a hill run down) the car eases back down to it
+    if (s > top) s = Math.max(top, s - 5 * dt);
 
     // ---- steering (less lock at speed); the handbrake turns the tail out
-    const want = steerIn * (MAX_STEER / (1 + Math.abs(s) / 11)) * (handbrake ? 1.6 : 1);
+    const want = steerIn * (MAX_STEER / (1 + Math.abs(s) / STEER_FADE)) * (handbrake ? 1.6 : 1);
     steer = lerp(steer, want, 1 - Math.pow(0.0008, dt));
 
     let slide = 0;
@@ -315,14 +337,14 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
       // ---- the boost pad
       const lat0 = lateralOf(v.x, v.z, here.i);
       const ahead = Math.cos(wrapAngle(v.heading - TRACK.samples[here.i].heading));
-      const nowOnPad = !!PAD && here.s > PAD.s0 && here.s < PAD.s1 && Math.abs(lat0) < PAD.half + 1 && ahead > 0.5 && s > 2;
+      const nowOnPad = ahead > 0.5 && s > 2 && ctx.boostPads.some((p) => here.s > p.s0 && here.s < p.s1 && Math.abs(lat0) < p.half + 1);
       if (nowOnPad) {
         if (!onPad) playWhoosh();
         padTime = PAD_TIME;
         if (s < PAD_SPEED) s = Math.min(PAD_SPEED, s + 45 * mdt);
       }
       onPad = nowOnPad;
-      s = clamp(s, -MAX_REV, Math.max(MAX_SPEED * BOOST, PAD_SPEED));
+      s = clamp(s, -MAX_REV, TOP_SPEED);
 
       const newHeading = v.heading - (s / WHEELBASE) * Math.tan(steer) * mdt;
       if (!blocked(v.x, v.z, newHeading)) v.heading = newHeading;
@@ -368,14 +390,40 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
         const alongWall = Math.cos(wrapAngle(travel - q.heading)) * s;
         const ry = heightAt(at.s) + SURFACE;
         wallHit([v.x + lx * (WALL_IN - WALL_LIMIT), ry, v.z + lz * (WALL_IN - WALL_LIMIT)], [-lx, 0, -lz], [0, 1, 0], across, alongWall, ry);
+        if (!touching) v.wallHits++;
+        touching = true;
         s *= across > 4 ? 0.7 : Math.pow(0.5, dt);
         // turn the car (and its slide) back along the wall
         const along = Math.cos(wrapAngle(v.heading - q.heading)) >= 0 ? q.heading : q.heading + Math.PI;
         v.heading += wrapAngle(along - v.heading) * Math.min(1, dt * 4);
         travel += wrapAngle(along - travel) * Math.min(1, dt * 8);
+      } else touching = false;
+      // ---- rivals' cars (solid: bounce off) and crates, cones… (they break or fly, the car goes on)
+      for (const c of ctx.dynamic) {
+        for (const k of [1, -1]) {
+          const cx = v.x + Math.sin(v.heading) * AXLE * k, cz = v.z + Math.cos(v.heading) * AXLE * k;
+          const dx = cx - c.x, dz = cz - c.z;
+          const d = Math.hypot(dx, dz), min = BODY_R + c.r;
+          if (d >= min || d < 1e-4) continue;
+          const nx = dx / d, nz = dz / d;
+          // how fast we were going into it
+          const into = -(Math.sin(travel) * s * nx + Math.cos(travel) * s * nz);
+          c.hit?.(into, -nx, -nz);
+          if (!c.solid) continue;
+          v.x += nx * (min - d);
+          v.z += nz * (min - d);
+          if (into > 0) {
+            s -= Math.sign(s) * Math.min(Math.abs(s), into * 0.9);
+            if (into > 4 && lastBump <= 0) {
+              playImpactThud(Math.min(1, into / 16));
+              lastBump = 0.4;
+            }
+          }
+        }
       }
       v.speed = s;
       v.slope = slope;
+      v.slide = slide;
 
       // ---- on the road, always: up and down with the hills
       y = roadY(v.x, v.z);

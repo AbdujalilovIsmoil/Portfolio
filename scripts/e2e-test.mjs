@@ -1,6 +1,7 @@
 /**
  * End-to-end smoke test: loads the production build in Chrome with every external host blocked,
- * waits for all background model loading, and fails on any page error, console error, or failed request.
+ * plays each mode a little (free drive, a race against the rivals, a mission) and fails on any page
+ * error, console error, or failed request.
  *
  *   npm run build && npm run test:e2e
  */
@@ -11,6 +12,14 @@ import puppeteer from "puppeteer-core";
 const CHROME = process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const PORT = process.env.PORT ?? "3101";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** Drive: forward, a turn, the handbrake, reverse. */
+const drive = async (page) => {
+  for (const [key, ms] of [["KeyW", 2500], ["KeyA", 1200], ["Space", 600], ["KeyS", 1500]]) {
+    await page.keyboard.down(key);
+    await sleep(ms);
+    await page.keyboard.up(key);
+  }
+};
 /** Which decoders the shipped models actually need (then the page must fetch our own copies). */
 const extensionsOf = (f) => {
   const b = readFileSync(f);
@@ -53,22 +62,41 @@ try {
     if (u.pathname.startsWith("/meshopt/")) meshopt = true;
     if (u.hostname === "localhost" && r.status() >= 400) problems.push(`HTTP ${r.status()} ${u.pathname}`);
   });
+  /** Click the menu button whose text matches. */
+  const pick = async (re) => {
+    await page.waitForFunction((src) => [...document.querySelectorAll("button")].some((b) => new RegExp(src).test(b.textContent)), { timeout: 90000 }, re.source);
+    await page.evaluate((src) => [...document.querySelectorAll("button")].find((b) => new RegExp(src).test(b.textContent)).click(), re.source);
+  };
+  /** The pick has loaded and started: the menu has gone. */
+  const started = () => page.waitForFunction(() => !document.querySelector("[data-menu]"), { timeout: 120000 });
+
   await page.goto(`http://localhost:${PORT}`);
-  await page.waitForFunction(() => [...document.querySelectorAll("button")].some((b) => /Start/.test(b.textContent)), { timeout: 90000 });
-  await page.evaluate(() => [...document.querySelectorAll("button")].find((b) => /Start/.test(b.textContent)).click());
-  await sleep(20000); // background loading + shader warm-up
-  // drive a little: forward, a turn, the handbrake, reverse
-  for (const [key, ms] of [["KeyW", 2500], ["KeyA", 1200], ["Space", 600], ["KeyS", 1500]]) {
-    await page.keyboard.down(key);
-    await sleep(ms);
-    await page.keyboard.up(key);
-  }
+  // free drive (the portfolio): every model in, every shader compiled, then it starts
+  await pick(/Free drive/);
+  await started();
+  await sleep(4000);
+  await drive(page);
+  await sleep(1500);
+  // a race: the rivals' cars (repainted at load), the countdown, racing
+  await page.keyboard.press("Escape");
+  await pick(/^\W*Race/);
+  await pick(/Speedway/);
+  await started();
+  await sleep(6500); // the fly-in and 3 – 2 – 1
+  await drive(page);
+  // a mission
+  await page.keyboard.press("Escape");
+  await pick(/^\W*Missions/);
+  await pick(/2\. Coin Rush/);
+  await started();
+  await sleep(6500);
+  await drive(page);
   await sleep(1500);
 
   console.log(`models downloaded: ${models.size}, own Draco decoder used: ${draco}, own meshopt decoder used: ${meshopt}`);
   if (!models.has("/models/race.glb")) problems.push("the car model was never downloaded");
   if (!models.has("/models/roadStraight.glb")) problems.push("the track tiles were never downloaded");
-  // (only for what was actually downloaded: the Arcade game's model loads only when you play)
+  // (only for what was actually downloaded)
   if (anyNeeds(models, "KHR_draco_mesh_compression") && !draco) problems.push("the Draco decoder was never fetched from /draco/");
   if (anyNeeds(models, "EXT_meshopt_compression") && !meshopt) problems.push("the meshopt decoder was never fetched from /meshopt/");
   const relevant = problems.filter((p) => !/googletagmanager|ERR_FAILED|net::ERR_BLOCKED/i.test(p));

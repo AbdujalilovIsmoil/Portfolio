@@ -395,7 +395,19 @@ export function buildTrack(cmds: string[] = LAYOUT): Track {
   };
 }
 
-export const TRACK = buildTrack();
+/** The track being driven (the Grand Circuit unless setLayout picked another). */
+export let TRACK = buildTrack();
+let current = LAYOUT;
+
+/** Drive a different track from now on (the 3D world is rebuilt round it). */
+export function setLayout(layout: string[]) {
+  if (layout === current) return;
+  current = layout;
+  TRACK = buildTrack(layout);
+}
+
+/** Is the Grand Circuit (the one with the portfolio on it) the track being driven? */
+export const onMainCircuit = () => current === LAYOUT;
 
 /** Where the car starts: on the grid, just behind the start gantry, facing along the track. */
 export function startPose() {
@@ -446,6 +458,45 @@ export function nearestSample(x: number, z: number, hint = -1): { i: number; d: 
     }
   }
   return { i: best, d: Math.hypot(arr[best].x - x, arr[best].z - z) };
+}
+
+/** The index of the sample at or before s (wraps). */
+export function sampleIndexAt(s: number) {
+  const L = TRACK.length;
+  const ss = ((s % L) + L) % L;
+  const arr = TRACK.samples;
+  let lo = 0, hi = arr.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (arr[mid].s <= ss) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
+}
+
+/** Is s (wrapped) on the loop-the-loop's climb (off the ground)? */
+export function onLoopClimb(s: number) {
+  const L = TRACK.loop;
+  if (!L) return false;
+  const d = (((s - L.s0) % TRACK.length) + TRACK.length) % TRACK.length;
+  return d > L.climbIn - 2 && d < L.climbOut + 2;
+}
+
+/** The point `lat` metres left of the centre line `s` metres along the lap, on the road surface (not on the loop). */
+export function pointAt(s: number, lat = 0) {
+  const L = TRACK.length;
+  const ss = ((s % L) + L) % L;
+  const S = TRACK.samples;
+  const i = sampleIndexAt(ss);
+  const a = S[i], b = S[(i + 1) % S.length];
+  const span = (b.s - a.s + L) % L || 1;
+  const f = Math.min(1, Math.max(0, (ss - a.s) / span));
+  let dh = b.heading - a.heading;
+  while (dh > Math.PI) dh -= Math.PI * 2;
+  while (dh < -Math.PI) dh += Math.PI * 2;
+  const heading = a.heading + dh * f;
+  const x = a.x + (b.x - a.x) * f, z = a.z + (b.z - a.z) * f;
+  return { x: x + Math.cos(heading) * lat, y: heightAt(ss) + SURFACE, z: z - Math.sin(heading) * lat, heading, s: ss };
 }
 
 /** Is (x, z) on the asphalt (not the grass verge)? */

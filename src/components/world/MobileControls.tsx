@@ -46,7 +46,7 @@ const Stick = styled.div`
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
 `;
 
-/** The touch version of the F key: read the stop you are on / start its mini-game. */
+/** The touch version of the F key: the billboards' cards on / off (free drive). */
 const ActionButton = styled.button`
   width: 68px;
   height: 68px;
@@ -63,8 +63,37 @@ const ActionButton = styled.button`
 const RightColumn = styled.div`
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-end;
   gap: 14px;
+`;
+
+const RightRow = styled.div`
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+`;
+
+/** The touch version of Shift: the nitro, for as long as you hold it. */
+const NitroButton = styled.button`
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: none;
+  background: radial-gradient(circle at 35% 30%, #ffd36b, #ff6a1f 55%, #c2261a);
+  color: #fff;
+  font: 900 13px var(--font-nav);
+  letter-spacing: 0.4px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  box-shadow: 0 8px 20px -6px rgba(255, 90, 30, 0.75);
+  transition: transform 0.08s, filter 0.08s;
+  &[data-on="true"] {
+    transform: scale(0.92);
+    filter: brightness(1.2);
+  }
 `;
 
 const LookBase = styled.div`
@@ -91,7 +120,7 @@ const LookStick = styled.div`
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
 `;
 
-export default function MobileControls() {
+export default function MobileControls({ action = true }: { action?: boolean }) {
   const input = useWorldInput();
   const baseRef = useRef<HTMLDivElement>(null);
   const lookBaseRef = useRef<HTMLDivElement>(null);
@@ -236,6 +265,15 @@ export default function MobileControls() {
     return () => cancelAnimationFrame(raf);
   }, [input]);
 
+  // the nitro: held down, Shift
+  const [nitro, setNitro] = useState(false);
+  const hold = (on: boolean) => {
+    /* eslint-disable react-hooks/immutability */
+    input.current.move.run = on;
+    /* eslint-enable react-hooks/immutability */
+    setNitro(on);
+  };
+
   function interact() {
     // Imperative input ref, intentionally mutated outside React's render cycle.
     /* eslint-disable react-hooks/immutability */
@@ -249,12 +287,31 @@ export default function MobileControls() {
         <Stick style={{ transform: `translate(calc(-50% + ${stick.x}px), calc(-50% + ${stick.y}px))` }} />
       </Base>
       <RightColumn>
-        <LookBase ref={lookBaseRef}>
-          <LookStick style={{ transform: `translate(calc(-50% + ${lookStick.x}px), calc(-50% + ${lookStick.y}px))` }} />
-        </LookBase>
-        <ActionButton type="button" aria-label="F: show or hide the cards, or start a garage game" onPointerDown={interact}>
-          F
-        </ActionButton>
+        {action && (
+          <ActionButton type="button" aria-label="F: show or hide the cards" onPointerDown={interact}>
+            F
+          </ActionButton>
+        )}
+        <RightRow>
+          <NitroButton
+            type="button"
+            aria-label="Nitro (hold)"
+            data-on={nitro}
+            onPointerDown={(e) => {
+              e.currentTarget.setPointerCapture?.(e.pointerId);
+              hold(true);
+            }}
+            onPointerUp={() => hold(false)}
+            onPointerCancel={() => hold(false)}
+            onLostPointerCapture={() => hold(false)}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            N₂O
+          </NitroButton>
+          <LookBase ref={lookBaseRef}>
+            <LookStick style={{ transform: `translate(calc(-50% + ${lookStick.x}px), calc(-50% + ${lookStick.y}px))` }} />
+          </LookBase>
+        </RightRow>
       </RightColumn>
     </Wrap>
   );

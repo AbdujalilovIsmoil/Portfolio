@@ -12,9 +12,14 @@ export interface DriveSignal {
   lastLap: number | null;
   bestLap: number | null;
   laps: number;
+  /**
+   * what else to show on the minimap — billboards (free drive), rivals (race), the mission's
+   * gates, coins, crates… (the HUD reads them each frame; `id` matches `visited` for billboards)
+   */
+  markers: { x: number; z: number; color: string; id?: string; ring?: boolean }[];
 }
 
-export const createDriveSignal = (): DriveSignal => ({ x: 0, z: 0, heading: 0, speed: 0, visited: new Set(), lapTime: null, lastLap: null, bestLap: null, laps: 0 });
+export const createDriveSignal = (): DriveSignal => ({ x: 0, z: 0, heading: 0, speed: 0, visited: new Set(), lapTime: null, lastLap: null, bestLap: null, laps: 0, markers: [] });
 
 /** 83.4 → "1:23.4" */
 export function formatLap(t: number) {

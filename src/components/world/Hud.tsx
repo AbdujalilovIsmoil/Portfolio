@@ -23,6 +23,6 @@ const Hint = styled.div`
   }
 `;
 
-export default function Hud() {
-  return <Hint>W/S gas · A/D steer · Shift boost · Space handbrake · F cards on/off · R back on track</Hint>;
+export default function Hud({ cards }: { cards: boolean }) {
+  return <Hint>W/S gas · A/D steer · Shift nitro · Space handbrake{cards ? " · F cards on/off" : ""} · R back on track · Esc menu</Hint>;
 }

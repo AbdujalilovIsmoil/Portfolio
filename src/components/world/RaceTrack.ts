@@ -5,8 +5,8 @@ import { QUALITY } from "./performanceTier";
 import { buildBirds } from "./Birds";
 import { buildMountains } from "./Mountains";
 import { buildSky } from "./Sky";
-import { LAYOUT, ROAD_HALF, SURFACE, TILE, TRACK, WALL_H, WALL_IN, WALL_T, boostPad, loopPose, roadFrames, sampleAt } from "./Track";
-import { ZONES, garageSpots, reserved } from "./Zones";
+import { ROAD_HALF, SURFACE, TILE, TRACK, WALL_H, WALL_IN, WALL_T, boostPad, heightAt, loopPose, roadFrames, sampleAt } from "./Track";
+import { mainStraightEnd, reserved } from "./Zones";
 import { canvasTexture, group, hash, lit, unlit, type Ctx } from "./core";
 
 /** Racing Kit props are a tile of 8 m (the road tiles are TILE). */
@@ -29,7 +29,6 @@ export const FOOT = {
   grandStandCovered: { x0: -1, x1: 0, z0: -0.02, z1: 1 },
   tentLong: { x0: -2, x1: 0, z0: 0, z1: 1 },
   billboardLow: { x0: -0.936, x1: 0.064, z0: -0.04, z1: 0.436 },
-  pitsGarage: { x0: -1, x1: 0, z0: -0.09, z1: 1 },
   point: { x0: 0, x1: 0, z0: 0, z1: 0 },
 };
 
@@ -352,21 +351,26 @@ function buildLoop(ctx: Ctx, parent: Node) {
   }
 
   // ---- the boost pad on the straight before it
-  const pad = boostPad()!;
+  drawBoostPad(ctx, root, boostPad()!);
+}
+
+/** A boost pad on the road: glowing chevrons scrolling the way you drive over it. */
+export function drawBoostPad(ctx: Ctx, parent: Node, pad: { s0: number; s1: number; half: number }) {
   const mid = sampleAt((pad.s0 + pad.s1) / 2);
   const padMat = unlit(ctx, { map: chevronTexture(ctx), opaque: true });
   padMat.zOffset = -2;
   const padTex = padMat.diffuseTexture as Texture;
   padTex.vScale = (pad.s1 - pad.s0) / (pad.half * 2);
   const plate = MeshBuilder.CreateGround("boostPad", { width: pad.half * 2, height: pad.s1 - pad.s0 }, ctx.scene);
-  plate.parent = root;
+  plate.parent = parent;
   plate.material = padMat;
   plate.isPickable = false;
-  plate.position.set(mid.x, mid.y + SURFACE + 0.02, mid.z);
+  plate.position.set(mid.x, heightAt((pad.s0 + pad.s1) / 2) + SURFACE + 0.02, mid.z);
   plate.rotation.y = mid.heading;
   ctx.onFrame((_, t) => {
     padTex.vOffset = -t * 1.6;
   });
+  return plate;
 }
 
 // ------------------------------------------------------------------ plants
@@ -441,7 +445,7 @@ async function thinInstanceModel(ctx: Ctx, file: string, parent: Node, spots: [n
  * walls along the whole lap, grandstands and flags along the main straight, light gantries over the
  * hills, and real trees, shrubs and flowers (Poly Haven, life size) round it.
  */
-export function buildRaceTrack(ctx: Ctx, parent: Node) {
+export function buildRaceTrack(ctx: Ctx, parent: Node, o: { boards: { x: number; z: number }[] }) {
   const root = group(ctx, { parent });
   const colliders = ctx.colliders;
 
@@ -503,9 +507,8 @@ export function buildRaceTrack(ctx: Ctx, parent: Node) {
   buildLoop(ctx, root);
 
   // ---- the main straight: grandstands outside, flags each side of the start
-  const main = TRACK.pieces.filter((_, i) => i < LAYOUT.indexOf("R3"));
-  const s0 = main[0].s0;
-  const s1 = main[main.length - 1].s0 + main[main.length - 1].length;
+  const s0 = 0;
+  const s1 = mainStraightEnd();
   const along = (s: number, lateral: number) => {
     const q = sampleAt(s);
     // + lateral = left of the heading (+x when facing +z)
@@ -549,12 +552,10 @@ export function buildRaceTrack(ctx: Ctx, parent: Node) {
   for (const [file, { cast, places }] of props) thinCopies(ctx, file, root, places, { cast, background: true }).catch((e) => console.error(file, e));
 
   // ---- real trees, shrubs and flowers (Poly Haven, life size)
-  const G = garageSpots();
   const clearOf = (x: number, z: number, track: number, boards: number) =>
     !reserved(x, z) &&
-    TRACK.samples.every((o) => Math.hypot(o.x - x, o.z - z) > track) &&
-    ZONES.every((zn) => Math.hypot(zn.board.x - x, zn.board.z - z) > boards) &&
-    [G.arcade, G.code].every((g) => Math.hypot(g.building.x - x, g.building.z - z) > 14);
+    TRACK.samples.every((q) => Math.hypot(q.x - x, q.z - z) > track) &&
+    o.boards.every((b) => Math.hypot(b.x - x, b.z - z) > boards);
   const B = TRACK.bounds;
   // jacaranda trees, 10–15 m tall: in the infield and round the outside. All of them on every
   // device: one instance each of a single tree mesh (all the trees drawn in one go), each switching
@@ -589,13 +590,21 @@ export function buildRaceTrack(ctx: Ctx, parent: Node) {
     n++;
   }
   ctx.defer(() => thinInstanceModel(ctx, "shrub.glb", root, shrubs).catch(() => {}));
-  // a bed of flowers at the foot of every billboard
+  // a bed of flowers at the foot of every billboard — or, on a track without them, every so often
+  // beside the road
   const FLOWERS = ["flower-empodium.glb", "flower-sorrel.glb", "flower-ursinia.glb"];
   const beds = new Map<string, [number, number, number, number][]>(FLOWERS.map((f) => [f, []]));
-  ZONES.forEach((zn, n) => {
+  const bedSpots: { x: number; z: number }[] = o.boards.length ? o.boards : [];
+  if (!bedSpots.length)
+    for (let s = 40, side = 1; s < TRACK.length - 20; s += 70, side = -side) {
+      const q = sampleAt(s);
+      const x = q.x + Math.cos(q.heading) * side * (0.5 * TILE + 8), z = q.z - Math.sin(q.heading) * side * (0.5 * TILE + 8);
+      if (clearOf(x, z, 0.5 * TILE + 5, 0)) bedSpots.push({ x, z });
+    }
+  bedSpots.forEach((b, n) => {
     for (let k = 0; k < 12; k++) {
       const a = hash(n * 31 + k, 61) * 6.28, r = 1.5 + hash(n * 17 + k, 62) * 4.5;
-      beds.get(FLOWERS[(n + k) % FLOWERS.length])!.push([zn.board.x + Math.cos(a) * r, zn.board.z + Math.sin(a) * r, hash(k, 63) * 6.28, 1.2 + hash(n, 64) * 0.4]);
+      beds.get(FLOWERS[(n + k) % FLOWERS.length])!.push([b.x + Math.cos(a) * r, b.z + Math.sin(a) * r, hash(k, 63) * 6.28, 1.2 + hash(n, 64) * 0.4]);
     }
   });
   for (const [file, spots] of beds) ctx.defer(() => thinInstanceModel(ctx, file, root, spots).catch(() => {}));

@@ -216,8 +216,10 @@ export function buildDebris(ctx: Ctx, parent: Node) {
   };
 
   const api: DebrisApi = {
-    hit(p, n, up, speed, fl, carVel) {
-      if (speed < 3) return;
+    hit(p, n, up, speedIn, fl, carVel, palette) {
+      if (speedIn < 3) return;
+      // (the bits fly as for a hard knock at most: flat out on the nitro they would land in the next field)
+      const speed = Math.min(speedIn, 40);
       const k = Math.min(1, (speed - 3) / 22); // 0 a knock … 1 flat out
       // along the wall
       const a: V3 = [up[1] * n[2] - up[2] * n[1], up[2] * n[0] - up[0] * n[2], up[0] * n[1] - up[1] * n[0]];
@@ -235,7 +237,8 @@ export function buildDebris(ctx: Ctx, parent: Node) {
         const side = (Math.random() - 0.5) * (1 + speed * 0.3);
         const vel: V3 = [n[0] * out + up[0] * lift + a[0] * side + cv[0] * 0.35, n[1] * out + up[1] * lift + a[1] * side + cv[1] * 0.35, n[2] * out + up[2] * lift + a[2] * side + cv[2] * 0.35];
         const r = Math.random();
-        const colour = high > 1.05 ? (r < 0.5 ? RED : WHITE) : r < 0.75 ? CONCRETE : r < 0.88 ? RED : WHITE; // the top band is painted
+        // (a wall: its top band is painted; something else brings its own colours)
+        const colour = palette ? palette[Math.floor(r * palette.length)] : high > 1.05 ? (r < 0.5 ? RED : WHITE) : r < 0.75 ? CONCRETE : r < 0.88 ? RED : WHITE;
         spawn(pos, vel, 0.07 + Math.pow(Math.random(), 2.2) * (0.1 + k * 0.38), colour, 3.5 + Math.random() * 3, fl);
       }
       // bits of the road surface where the wheels dug in
@@ -250,8 +253,8 @@ export function buildDebris(ctx: Ctx, parent: Node) {
       const mid: V3 = [p[0] + up[0] * 0.6 + n[0] * 0.3, p[1] + up[1] * 0.6 + n[1] * 0.3, p[2] + up[2] * 0.6 + n[2] * 0.3];
       burst(dust, mid, [n[0] * 1.2 + up[0], n[1] * 1.2 + up[1], n[2] * 1.2 + up[2]], 0.9, Math.round(6 + k * 30));
       burst(sparks, mid, [n[0] + up[0] * 0.6, n[1] + up[1] * 0.6, n[2] + up[2] * 0.6], 0.8, Math.round(8 + k * 46));
-      // a crack where it hit, bigger for a harder hit
-      if (speed > 6) {
+      // a crack where it hit, bigger for a harder hit (walls only)
+      if (speed > 6 && !palette) {
         const d = decals[nextDecal];
         nextDecal = (nextDecal + 1) % DECALS;
         const sz = 1 + k * 2;

@@ -17,7 +17,7 @@ export interface WorldInput {
   lookJoystick: { x: number; y: number };
   /** Increments on every jump request (key press / tap) — consumers compare against their own last-seen value instead of mutating this ref. */
   jumpId: number;
-  /** Increments on every interact (F) press — read a stop, start a mini-game. */
+  /** Increments on every interact (F) press — the billboards' cards on / off (free drive). */
   interactId: number;
   /** Increments on every R press — put the car back at the start. */
   resetId: number;
@@ -27,7 +27,7 @@ export interface WorldInput {
   locked: boolean;
   /** Continuous held-state of the jump key/button — used for ascending while flying (a discrete jumpId alone can't express "held"). */
   spaceHeld: boolean;
-  /** Accumulated look angles (radians), driven by pointer-lock mouse deltas — like an FPS/CS-style mouselook. */
+  /** Accumulated look angles (radians): dragging on the 3D view with the mouse (or the touch look stick) turns the camera round the car. */
   look: { yaw: number; pitch: number };
 }
 
@@ -87,38 +87,42 @@ export function WorldInputProvider({ children }: { children: React.ReactNode }) 
       if (key) ref.current.move[key] = false;
       if (e.code === "Space") ref.current.spaceHeld = false;
     };
-    const move = (e: MouseEvent) => {
-      if (document.pointerLockElement == null || ref.current.locked) return;
+    // Looking round: drag on the 3D view with the mouse. (No pointer lock: the pointer stays on
+    // screen for the menu and the buttons — it used to vanish on every click.) Pointer events, not
+    // mouse events: Babylon cancels pointerdown on its canvas, and then the browser sends no mouse ones.
+    let dragging: HTMLCanvasElement | null = null;
+    const press = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse" || e.button !== 0 || ref.current.locked || !(e.target instanceof HTMLCanvasElement)) return;
+      dragging = e.target;
+      dragging.style.cursor = "grabbing";
+    };
+    const release = () => {
+      if (dragging) dragging.style.cursor = "";
+      dragging = null;
+    };
+    const move = (e: PointerEvent) => {
+      if (!dragging || e.pointerType !== "mouse" || ref.current.locked) return;
+      dragging.style.cursor = "grabbing"; // (Babylon resets it as the pointer moves over its canvas)
       const look = ref.current.look;
       look.yaw -= e.movementX * LOOK_SENSITIVITY;
       look.pitch = Math.min(PITCH_MAX, Math.max(PITCH_MIN, look.pitch + e.movementY * LOOK_SENSITIVITY));
     };
-    let lockCooldown = false;
-    const requestLock = () => {
-      if (document.pointerLockElement != null || lockCooldown || ref.current.locked) return;
-      const result = document.body.requestPointerLock?.();
-      // Some browsers return a Promise (Pointer Lock v2) that rejects when the
-      // request can't be honored yet — swallow it and back off briefly instead
-      // of spamming retries or leaving an unhandled rejection.
-      if (result && typeof (result as Promise<void>).catch === "function") {
-        (result as Promise<void>).catch(() => {
-          lockCooldown = true;
-          setTimeout(() => {
-            lockCooldown = false;
-          }, 1000);
-        });
-      }
-    };
 
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
-    window.addEventListener("mousemove", move);
-    window.addEventListener("click", requestLock);
+    window.addEventListener("pointerdown", press);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+    window.addEventListener("blur", release);
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
-      window.removeEventListener("mousemove", move);
-      window.removeEventListener("click", requestLock);
+      window.removeEventListener("pointerdown", press);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+      window.removeEventListener("blur", release);
     };
   }, []);
 

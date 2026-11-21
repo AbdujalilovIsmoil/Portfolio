@@ -17,9 +17,13 @@ import {
 import { buildCameraRig } from "./CameraRig";
 import { buildCar } from "./Car";
 import { buildDebris } from "./Debris";
+import { buildMission } from "./Missions";
+import { buildRace } from "./Race";
 import { buildRaceInfo } from "./RaceInfo";
 import { buildRaceTrack } from "./RaceTrack";
-import { TRACK, heightAt, loopPose, sampleAt, startPose, trackS } from "./Track";
+import { TRACK, boostPad, heightAt, loopPose, sampleAt, setLayout, startPose, trackS } from "./Track";
+import { getZones } from "./Zones";
+import { TRACKS, missionById, type Session } from "./game";
 import { buildAmbience } from "./ambience";
 import { SUN_DIR } from "./Sky";
 import { LIGHT_SCALE, group, linear, type Ctx } from "./core";
@@ -31,30 +35,35 @@ import type { AchievementSignal } from "./achievementSignal";
 import type { DriveSignal } from "./driveSignal";
 import type { ExhibitSignal } from "./exhibitSignal";
 import type { IntroSignal } from "./introSignal";
-import type { PsSignal } from "./psSignal";
+import type { PlaySignal } from "./raceSignal";
 import type { TeleportSignal } from "./teleportSignal";
-import type { WorkSignal } from "./workSignal";
 
 const BG = "#12151d";
 /** three.js' ACES divides exposure by 0.6; Babylon's doesn't. */
 const EXPOSURE = 1 / 0.6;
 
 export interface WorldProps {
+  /** what is being played: the world is built for it (and rebuilt — remounted — for the next) */
+  session: Session;
   teleportRef: React.MutableRefObject<TeleportSignal>;
   achievementRef: React.MutableRefObject<AchievementSignal>;
   introRef: React.MutableRefObject<IntroSignal>;
-  psRef: React.MutableRefObject<PsSignal>;
   exhibitRef: React.MutableRefObject<ExhibitSignal>;
-  workRef: React.MutableRefObject<WorkSignal>;
   driveRef: React.MutableRefObject<DriveSignal>;
+  playRef: React.MutableRefObject<PlaySignal>;
+  /** true while the menu is open over the game */
+  pauseRef: React.MutableRefObject<boolean>;
 }
 
-export default function World({ teleportRef, achievementRef, introRef, psRef, exhibitRef, workRef, driveRef }: WorldProps) {
+export default function World({ session, teleportRef, achievementRef, introRef, exhibitRef, driveRef, playRef, pauseRef }: WorldProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const input = useWorldInput();
 
   useEffect(() => {
+    // the track for this session (every module reads the one being driven)
+    setLayout(TRACKS[session.track].layout);
+    const mission = session.mode === "mission" ? missionById(session.mission) : null;
     const SPAWN = startPose();
     const canvas = canvasRef.current!;
     const overlay = overlayRef.current!;
@@ -139,7 +148,10 @@ export default function World({ teleportRef, achievementRef, introRef, psRef, ex
       shadow,
       player: new Vector3(SPAWN.x, 0, SPAWN.z),
       overlay,
-      vehicle: { driving: true, x: SPAWN.x, z: SPAWN.z, heading: SPAWN.heading, speed: 0, slope: 0, s: 0, loop: -1, exitAt: null },
+      vehicle: { driving: true, x: SPAWN.x, z: SPAWN.z, heading: SPAWN.heading, speed: 0, slope: 0, s: 0, loop: -1, frozen: false, wallHits: 0, slide: 0, exitAt: null },
+      dynamic: [],
+      boostPads: boostPad() ? [boostPad()!] : [],
+      paused: false,
       colliders: [],
       exhibits: [],
       groundY: () => 0,
@@ -158,6 +170,7 @@ export default function World({ teleportRef, achievementRef, introRef, psRef, ex
     scene.onBeforeRenderObservable.add(() => {
       const dt = Math.min(engine.getDeltaTime() / 1000, 0.1);
       ctx.time += dt;
+      ctx.paused = pauseRef.current;
       frameFns.forEach((fn) => fn(dt, ctx.time));
     });
 
@@ -196,8 +209,16 @@ export default function World({ teleportRef, achievementRef, introRef, psRef, ex
     const root = group(ctx);
     resetLoading();
     criticalLoads.begin(); // the road tiles and the car gate the start button
-    const track = buildRaceTrack(ctx, root);
-    buildRaceInfo(ctx, root, { input, exhibitRef, psRef, workRef, achievementRef, driveRef });
+    // free drive: the portfolio's billboards round the Grand Circuit; races and missions: none
+    const boards = session.mode === "free" ? getZones().map((z) => z.board) : [];
+    const track = buildRaceTrack(ctx, root, { boards });
+    driveRef.current.markers = [];
+    Object.assign(playRef.current, { kind: "", state: "intro", results: [] });
+    exhibitRef.current.open = false;
+    let mode: { ready?: Promise<unknown> } = {};
+    if (session.mode === "free") buildRaceInfo(ctx, root, { input, exhibitRef, achievementRef, driveRef });
+    else if (session.mode === "race") mode = buildRace(ctx, root, { playRef, driveRef, introRef }, { track: session.track });
+    else if (mission) mode = buildMission(ctx, root, { playRef, driveRef, introRef }, mission);
     buildAmbience(ctx);
     const car = buildCar(ctx, root, { input, teleportRef, driveRef });
     const debris = buildDebris(ctx, root);
@@ -205,7 +226,7 @@ export default function World({ teleportRef, achievementRef, introRef, psRef, ex
     buildCameraRig(ctx, { input, teleportRef, introRef });
     ctx.afterBuild.forEach((fn) => fn());
     // dev-only handle for poking at the world from the console / automated screenshots
-    if (process.env.NODE_ENV !== "production" || new URLSearchParams(location.search).has("debug")) (window as unknown as { __world?: unknown }).__world = { ctx, input, engine, loadContainer, TRACK, sampleAt, heightAt, trackS, loopPose, quality, gpu: gpuName() };
+    if (process.env.NODE_ENV !== "production" || new URLSearchParams(location.search).has("debug")) (window as unknown as { __world?: unknown }).__world = { ctx, input, engine, loadContainer, TRACK, sampleAt, heightAt, trackS, loopPose, quality, gpu: gpuName(), play: playRef.current, session, drive: driveRef.current };
     car.ready.catch((e) => console.error("The car failed to load", e));
 
     // The start button waits until everything is loaded AND every shader is compiled — the
@@ -219,7 +240,7 @@ export default function World({ teleportRef, achievementRef, introRef, psRef, ex
       });
     trackLoad(
       (async () => {
-        await Promise.allSettled([track.ready, car.ready]);
+        await Promise.allSettled([track.ready, car.ready, mode.ready]);
         await until(() => deferred.length === 0, 60000);
         await Promise.allSettled(pending);
         await Promise.race([scene.whenReadyAsync(), new Promise((r) => setTimeout(r, 15000))]);
@@ -254,9 +275,7 @@ export default function World({ teleportRef, achievementRef, introRef, psRef, ex
       }
     });
 
-    engine.runRenderLoop(() => {
-      if (!psRef.current.playing) scene.render();
-    });
+    engine.runRenderLoop(() => scene.render());
     const onResize = () => engine.resize();
     window.addEventListener("resize", onResize);
     const ro = new ResizeObserver(onResize);

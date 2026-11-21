@@ -13,6 +13,8 @@ const CanvasWrap = styled.div`
 
   canvas {
     outline: none;
+    /* (drag to look round the car) */
+    cursor: grab;
   }
 `;
 

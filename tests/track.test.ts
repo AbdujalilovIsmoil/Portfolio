@@ -176,7 +176,7 @@ describe("race track", () => {
 
 describe("info along the track", () => {
   it("has a card for every piece of content, in order round the lap", async () => {
-    const { ZONES } = await import("../src/components/world/Zones");
+    const ZONES = (await import("../src/components/world/Zones")).getZones();
     const { JOBS, WORKS, SKILL_GROUPS, TESTIMONIALS, ACHIEVEMENTS, EDUCATION } = await import("../src/components/world/content");
     expect(ZONES).toHaveLength(1 + JOBS.length + WORKS.length + SKILL_GROUPS.length + TESTIMONIALS.length + ACHIEVEMENTS.length + EDUCATION.length + 1);
     expect(new Set(ZONES.map((z) => z.id)).size).toBe(ZONES.length);
@@ -194,8 +194,8 @@ describe("info along the track", () => {
   });
 
   it("a card shows only at its own billboard, and nothing in between", async () => {
-    const { ZONES, zoneAt } = await import("../src/components/world/Zones");
-    for (const z of ZONES) expect(zoneAt(z.s)?.zone.id).toBe(z.id);
+    const { getZones, zoneAt } = await import("../src/components/world/Zones");
+    for (const z of getZones()) expect(zoneAt(z.s)?.zone.id).toBe(z.id);
     const L = TRACK.length;
     let gaps = 0;
     for (let s = 0; s < L; s += 2) {
@@ -213,8 +213,8 @@ describe("info along the track", () => {
   });
 
   it("billboards stand beside the track, never on it", async () => {
-    const { ZONES } = await import("../src/components/world/Zones");
-    for (const z of ZONES) {
+    const { getZones } = await import("../src/components/world/Zones");
+    for (const z of getZones()) {
       const near = Math.min(...TRACK.samples.map((q) => Math.hypot(q.x - z.board.x, q.z - z.board.z)));
       expect(near, z.id).toBeGreaterThan(0.5 * TILE + 5);
     }
@@ -222,18 +222,9 @@ describe("info along the track", () => {
 });
 
 describe("start area", () => {
-  it("keeps the billboards off the grandstands and the pit garages", async () => {
-    const { ZONES, reserved, garageSpots, GARAGE, GARAGE_PAD_R } = await import("../src/components/world/Zones");
-    for (const z of ZONES) expect(reserved(z.board.x, z.board.z), z.id).toBe(false);
-    const g = garageSpots();
-    for (const p of [g.arcade, g.code]) {
-      // the garages stand clear of the road, their circles just off it
-      const near = Math.min(...TRACK.samples.map((q) => Math.hypot(q.x - p.building.x, q.z - p.building.z)));
-      expect(near).toBeGreaterThan(0.5 * TILE + GARAGE / 2);
-      // their circles are pit boxes on the asphalt, inside the walls
-      const padNear = Math.min(...TRACK.samples.map((q) => Math.hypot(q.x - p.pad.x, q.z - p.pad.z)));
-      expect(padNear + GARAGE_PAD_R).toBeLessThan(WALL_IN);
-    }
+  it("keeps the billboards off the grandstands and the loop", async () => {
+    const { getZones, reserved } = await import("../src/components/world/Zones");
+    for (const z of getZones()) expect(reserved(z.board.x, z.board.z), z.id).toBe(false);
   });
 });
 

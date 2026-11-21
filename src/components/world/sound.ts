@@ -74,7 +74,7 @@ export function playChime() {
 }
 
 export interface EngineSound {
-  /** speed in m/s, throttle 0–1; `mute` silences it (paused, or a mini-game is open) */
+  /** speed in m/s, throttle 0–1; `mute` silences it (the menu is open, or the car is held at the start / finish) */
   set(speed: number, throttle: number, mute: boolean): void;
   dispose(): void;
 }
@@ -112,9 +112,11 @@ export async function createEngineSample(ac: AudioContext, url: string): Promise
   return {
     set(speed, throttle, mute) {
       const k = Math.min(1, Math.abs(speed) / 34);
+      // (past the throttle's top speed — the nitro — it keeps on climbing, a little)
+      const over = Math.min(1, Math.max(0, Math.abs(speed) - 36) / 47);
       const t = ac.currentTime;
-      source.playbackRate.setTargetAtTime(0.7 + k * 1.15 + throttle * 0.1, t, 0.08);
-      filter.frequency.setTargetAtTime(1300 + k * 2200 + throttle * 600, t, 0.1);
+      source.playbackRate.setTargetAtTime(0.7 + k * 1.15 + over * 0.4 + throttle * 0.1, t, 0.08);
+      filter.frequency.setTargetAtTime(1300 + k * 2200 + over * 1200 + throttle * 600, t, 0.1);
       gain.gain.setTargetAtTime(mute ? 0 : 0.16 + k * 0.14 + throttle * 0.1, t, 0.1);
     },
     dispose() {
@@ -189,4 +191,44 @@ export function playWhoosh() {
   g.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
   src.connect(bp).connect(g).connect(ac.destination);
   src.start(now);
+}
+
+/** A countdown beep: low for 3-2-1, high for GO. */
+export function playBeep(high = false) {
+  const ac = peekCtx();
+  if (!ac) return;
+  const now = ac.currentTime;
+  const o = ac.createOscillator();
+  o.type = "square";
+  o.frequency.value = high ? 880 : 440;
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0, now);
+  g.gain.linearRampToValueAtTime(0.09, now + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.001, now + (high ? 0.6 : 0.25));
+  const f = ac.createBiquadFilter();
+  f.type = "lowpass";
+  f.frequency.value = 2400;
+  o.connect(f).connect(g).connect(ac.destination);
+  o.start(now);
+  o.stop(now + 0.62);
+}
+
+/** A coin, a gate, a parcel: a bright little pling. */
+export function playPickup(pitch = 1) {
+  const ac = peekCtx();
+  if (!ac) return;
+  const now = ac.currentTime;
+  [1, 1.5].forEach((m, i) => {
+    const o = ac.createOscillator();
+    o.type = "sine";
+    o.frequency.value = 988 * pitch * m;
+    const g = ac.createGain();
+    const t = now + i * 0.07;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.1, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+    o.connect(g).connect(ac.destination);
+    o.start(t);
+    o.stop(t + 0.3);
+  });
 }

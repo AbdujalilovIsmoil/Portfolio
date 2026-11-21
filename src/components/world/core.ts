@@ -65,7 +65,31 @@ export interface VehicleState {
   s: number;
   /** on the loop-the-loop: how far round (0–1); −1 when not on it */
   loop: number;
+  /** held still (a race's countdown, a finished mission, the menu open): the pedals do nothing */
+  frozen: boolean;
+  /** how many times the car has touched a wall (it only ever goes up) */
+  wallHits: number;
+  /** how far the car is sliding sideways (radians between where it points and where it goes) */
+  slide: number;
   exitAt: [number, number] | null;
+}
+
+/** Something on the track that moves or breaks — a rival's car, a crate, a cone (a circle on the ground). */
+export interface DynamicCollider {
+  x: number;
+  z: number;
+  r: number;
+  /** solid: the car bounces off it; else the car goes through it (and `hit` hears about it) */
+  solid: boolean;
+  /** the car ran into it: how fast (m/s, along the hit) and which way it was pushed (nx, nz) */
+  hit?: (speed: number, nx: number, nz: number) => void;
+}
+
+/** A boost pad: from s0 to s1 along the lap, `half` metres either side of the centre line. */
+export interface BoostPad {
+  s0: number;
+  s1: number;
+  half: number;
 }
 
 /** Bits of wall and road knocked loose when the car hits something (Debris.ts). */
@@ -74,7 +98,7 @@ export interface DebrisApi {
    * A hit at `p` on a surface facing `n` (into the road; `up` is the road's up) — `speed` is how fast
    * the car was going into it (m/s), `floor` the height the bits land on.
    */
-  hit(p: [number, number, number], n: [number, number, number], up: [number, number, number], speed: number, floor: number, carVel?: [number, number, number]): void;
+  hit(p: [number, number, number], n: [number, number, number], up: [number, number, number], speed: number, floor: number, carVel?: [number, number, number], palette?: [number, number, number][]): void;
   /** Scraping along a wall at `speed` (m/s): grit and sparks, a few at a time. */
   scrape(p: [number, number, number], n: [number, number, number], up: [number, number, number], speed: number, floor: number): void;
 }
@@ -119,6 +143,12 @@ export interface Ctx {
   teleportPlayer?: (x: number, z: number) => void;
   /** Debris on impacts (set by Debris.ts). */
   debris?: DebrisApi;
+  /** Rivals' cars, crates, cones… (kept up to date by whoever owns them; the car checks them every frame). */
+  dynamic: DynamicCollider[];
+  /** The boost pads on the track (the one before the loop, a mission's own). */
+  boostPads: BoostPad[];
+  /** The menu is open: races and missions hold their clocks. */
+  paused: boolean;
 }
 
 /** three.js light intensities are physical (÷π on diffuse); Babylon's aren't. */

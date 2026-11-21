@@ -1,6 +1,6 @@
 import { ABOUT, ACHIEVEMENTS, CONTACT, EDUCATION, JOBS, PROFILE, SKILL_GROUPS, TECHS, TESTIMONIALS, WORKS } from "./content";
 import type { ExhibitInfo } from "./exhibitSignal";
-import { LAYOUT, ROAD_HALF, TILE, TRACK, nearLoop, sampleAt } from "./Track";
+import { TILE, TRACK, nearLoop, sampleAt } from "./Track";
 
 /**
  * What you read while you drive (pure data — tested in tests/track.test.ts): one billboard per piece
@@ -51,38 +51,19 @@ export interface Zone {
 
 // ---------------------------------------------------------------- the main straight
 
-/** Where the main straight ends (the first bend). */
-const MAIN_END = TRACK.pieces[LAYOUT.indexOf("R3")].s0;
-/** Pit garage size (metres) and the radius of the circle you stop on in front of one. */
-export const GARAGE = 12;
-export const GARAGE_PAD_R = 3.6;
-
-/**
- * The pit garages, behind the wall on the infield side of the main straight. Their circles are on
- * the asphalt in front of them (pit boxes): pull up on one and press F.
- */
-export function garageSpots() {
-  const at = (s: number) => {
-    const q = sampleAt(s);
-    // the infield is on the right of the main straight (lateral −)
-    const lat = (d: number) => ({ x: q.x - Math.cos(q.heading) * d, z: q.z + Math.sin(q.heading) * d });
-    return { pad: lat(ROAD_HALF * TILE - GARAGE_PAD_R - 0.4), building: lat(0.5 * TILE + 5 + GARAGE / 2), face: q.heading + Math.PI / 2 };
-  };
-  return { arcade: at(TRACK.startS - 52), code: at(TRACK.startS - 30) };
+/** Where the start straight ends: the first bend of the track being driven. */
+export function mainStraightEnd() {
+  const bend = TRACK.pieces.find((p) => /^[RLH]/.test(p.cmd));
+  return bend ? bend.s0 : TRACK.length;
 }
 
-/**
- * Ground kept for the start area: the grandstands (and the tents behind them) all along the left of
- * the main straight, and the two pit garages on its right.
- */
+/** Ground kept clear: the grandstands (and the tents behind them) along the left of the start straight, and round the loop. */
 export function reserved(x: number, z: number) {
   const q0 = sampleAt(0);
   const along = (x - q0.x) * Math.sin(q0.heading) + (z - q0.z) * Math.cos(q0.heading);
   const left = (x - q0.x) * Math.cos(q0.heading) - (z - q0.z) * Math.sin(q0.heading);
-  if (along > -12 && along < MAIN_END + 12 && left > 0 && left < 70) return true;
-  if (nearLoop(x, z)) return true;
-  const g = garageSpots();
-  return [g.arcade, g.code].some((p) => Math.hypot(p.building.x - x, p.building.z - z) < GARAGE + 2 || Math.hypot(p.pad.x - x, p.pad.z - z) < GARAGE_PAD_R + 4);
+  if (along > -12 && along < mainStraightEnd() + 12 && left > 0 && left < 70) return true;
+  return nearLoop(x, z);
 }
 
 /** The card shows from this far before its billboard until this far past it. */
@@ -168,14 +149,19 @@ function placeZones(): Zone[] {
   });
 }
 
-export const ZONES: Zone[] = placeZones();
+/** The billboards round the Grand Circuit (placed once, when first asked for). */
+let placed: { track: object; zones: Zone[] } | null = null;
+export function getZones(): Zone[] {
+  if (!placed || placed.track !== TRACK) placed = { track: TRACK, zones: placeZones() };
+  return placed.zones;
+}
 
 /** The billboard you are at, at distance s along the lap (null between them), and how far through its stretch you are (0–1). */
 export function zoneAt(s: number): { zone: Zone; k: number } | null {
   const L = TRACK.length;
   let best: { zone: Zone; k: number } | null = null;
   let bestD = Infinity;
-  for (const z of ZONES) {
+  for (const z of getZones()) {
     const d = (s - z.from + L) % L; // how far past where its card starts
     if (d <= BEFORE + AFTER && d < bestD) {
       bestD = d;

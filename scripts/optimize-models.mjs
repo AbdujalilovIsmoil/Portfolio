@@ -17,9 +17,7 @@ const DIR = join(import.meta.dirname, "..", "public/models");
 const CLI = ["--yes", "@gltf-transform/cli@4.1.1"];
 
 /** Max texture edge per model; everything else gets DEFAULT_SIZE. */
-const TEXTURE_SIZE = {
-  "soldier.glb": 1024,
-};
+const TEXTURE_SIZE = {};
 const DEFAULT_SIZE = 512;
 /** Very dense scans: decimate (the normal maps keep the surface detail). Value = target triangle ratio. */
 const SIMPLIFY = {};
