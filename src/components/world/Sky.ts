@@ -68,7 +68,8 @@ export function buildSky(ctx: Ctx, parent: Node) {
   const sky = group(ctx, { parent });
 
   const day = dome(ctx, gradient(ctx, [[0, "#1559c4"], [0.3, "#2f80e6"], [0.45, "#6eb0f5"], [0.52, "#8fc2f5"], [0.6, "#a2cdf5"], [1, "#a2cdf5"]]), "skyDay");
-  const night = dome(ctx, gradient(ctx, [[0, "#02040c"], [0.3, "#060b1f"], [0.48, "#101a3a"], [0.58, "#1c2747"], [1, "#1c2747"]]), "skyNight");
+  // (over a city: deep blue overhead, the horizon lit up warm by the streets below)
+  const night = dome(ctx, gradient(ctx, [[0, "#040818"], [0.3, "#0b1430"], [0.45, "#1c2a52"], [0.53, "#4a4566"], [0.58, "#5d4a5c"], [1, "#2a2a3a"]]), "skyNight");
   night.mat.alpha = 0;
   night.mesh.alphaIndex = 0;
 

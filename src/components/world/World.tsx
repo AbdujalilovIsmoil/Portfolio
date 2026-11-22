@@ -13,21 +13,25 @@ import {
   Scene,
   ShadowGenerator,
   Vector3,
+  Viewport,
 } from "@babylonjs/core";
 import { buildCameraRig } from "./CameraRig";
 import { buildCar } from "./Car";
 import { buildDebris } from "./Debris";
 import { buildMission } from "./Missions";
 import { buildRace } from "./Race";
+import { paintedTexture } from "./Opponents";
+import { musicFile } from "./musicChoice";
+import { createTeleportSignal } from "./teleportSignal";
+import { createDriveSignal } from "./driveSignal";
 import { buildRaceInfo } from "./RaceInfo";
 import { buildRaceTrack } from "./RaceTrack";
 import { buildUnderworld } from "./Underworld";
 import { TRACK, boostPad, heightAt, loopPose, sampleAt, setLayout, startPose, trackS } from "./Track";
 import { getZones } from "./Zones";
 import { TRACKS, missionById, type Session } from "./game";
-import { buildAmbience } from "./ambience";
 import { SUN_DIR } from "./Sky";
-import { LIGHT_SCALE, group, linear, type Ctx } from "./core";
+import { LIGHT_SCALE, group, linear, type Ctx, type VehicleState } from "./core";
 import { QUALITY, detectQuality, gpuName } from "./performanceTier";
 import { criticalLoads, loadContainer } from "./assets";
 import { resetLoading, trackLoad } from "./loadingSignal";
@@ -41,6 +45,8 @@ import type { TeleportSignal } from "./teleportSignal";
 
 const BG = "#12151d";
 /** three.js' ACES divides exposure by 0.6; Babylon's doesn't. */
+/** How far into the night it is (0 day … 1 deep night): dusk — the sky going violet, the city's windows lit, still light enough to drive by. */
+const NIGHT = 0.22;
 const EXPOSURE = 1 / 0.6;
 
 export interface WorldProps {
@@ -61,6 +67,8 @@ export default function World({ session, teleportRef, achievementRef, introRef, 
   const overlayRef = useRef<HTMLDivElement>(null);
   const input = useWorldInput();
 
+  // (the effect writes the shared input ref: split screen on or off)
+  // eslint-disable-next-line react-hooks/immutability
   useEffect(() => {
     // the track for this session (every module reads the one being driven)
     setLayout(TRACKS[session.track].layout);
@@ -92,11 +100,29 @@ export default function World({ session, teleportRef, achievementRef, introRef, 
     camera.minZ = 0.6;
     camera.maxZ = 1600;
     camera.setTarget(new Vector3(SPAWN.x, 0, SPAWN.z));
+    // split screen (a race for two): player 1 in the top half, player 2 in the bottom, each with a camera of their own
+    const split = session.mode === "race" && session.players === 2;
+    // (the input is a ref shared with the menu: written here, read by the keyboard handler)
+    const io = input.current;
+    // eslint-disable-next-line react-hooks/immutability
+    io.split = split;
+    const secondCamera = () => {
+      const c = new FreeCamera("cam2", camera.position.clone(), scene);
+      c.fov = camera.fov;
+      c.minZ = camera.minZ;
+      c.maxZ = camera.maxZ;
+      c.viewport = new Viewport(0, 0, 1, 0.5);
+      camera.viewport = new Viewport(0, 0.5, 1, 0.5);
+      scene.activeCameras = [camera, c];
+      return c;
+    };
+    const camera2 = split ? secondCamera() : null;
 
     // ---- lights (intensities converted from three.js' physical units): the sky and the sun
     const hemi = new HemisphericLight("hemi", new Vector3(0, 1, 0), scene);
     hemi.specular = Color3.Black();
 
+    // (the sun, low in the west at dusk: it lights the scene and casts the long shadows)
     const sun = new DirectionalLight("sun", SUN_DIR.negate(), scene);
     sun.position.set(0, 120, 0);
 
@@ -138,6 +164,12 @@ export default function World({ session, teleportRef, achievementRef, introRef, 
       shadow.normalBias = 0.02;
       shadow.darkness = 0.28;
     }
+    // (two cameras render the scene twice — and with it the shadow map, though it is the same map for
+    // both: refreshed on every other render, it is drawn once a frame)
+    if (split) {
+      const map = shadow.getShadowMap();
+      if (map) map.refreshRate = 2;
+    }
 
     // ---- shared context + frame loop
     const deferred: (() => unknown)[] = [];
@@ -158,7 +190,8 @@ export default function World({ session, teleportRef, achievementRef, introRef, 
       groundY: () => 0,
       regions: [TRACK.bounds],
       time: 0,
-      night: 0,
+      // (dusk in the city: a violet sky, the first stars, the windows lit)
+      night: NIGHT,
       outdoor: 1,
       onFrame(fn) {
         frameFns.add(fn);
@@ -175,22 +208,22 @@ export default function World({ session, teleportRef, achievementRef, introRef, 
       frameFns.forEach((fn) => fn(dt, ctx.time));
     });
 
-    // A clear, sunny day: a strong sun and a modest sky fill, for crisp light and real shadows,
-    // and a whisper of aerial perspective (no milky haze).
+    // Dusk in the city: light enough to drive without headlights — a low, warm sun with long
+    // shadows, a violet sky, the first windows lit — a soft evening haze.
     scene.fogMode = Scene.FOGMODE_EXP2;
-    scene.fogDensity = 0.0009;
-    scene.fogColor = Color3.FromHexString("#b4d4f4");
-    sun.intensity = 5.2 * LIGHT_SCALE;
-    sun.diffuse = new Color3(1, 0.93, 0.74);
+    scene.fogDensity = 0.001;
+    scene.fogColor = Color3.FromHexString("#8f87a3");
+    sun.intensity = 6 * LIGHT_SCALE;
+    sun.diffuse = new Color3(1, 0.74, 0.55);
     // the sky's light and an even fill, as one hemispheric light: the two are linear, so their sum is
     // exactly the same light — and every material does one light less per pixel
-    const sky = linear("#c9d4ea").scale(1.5), skyGround = linear("#6a5644").scale(1.5);
-    const fill = 0.3;
+    const sky = linear("#b4b8dc").scale(2.6), skyGround = linear("#8a7466").scale(2.2);
+    const fill = 0.45;
     hemi.intensity = LIGHT_SCALE;
     hemi.diffuse = new Color3(sky.r + fill, sky.g + fill, sky.b + fill);
     hemi.groundColor = new Color3(skyGround.r + fill, skyGround.g + fill, skyGround.b + fill);
 
-    // Deferred tasks (trees, shrubs, flowers): one a frame behind the start screen; should any be
+    // Deferred tasks: one a frame behind the start screen; should any be
     // left once you drive, one every 0.12 s.
     const introAtStart = introRef.current.value;
     const pending: Promise<unknown>[] = [];
@@ -219,16 +252,35 @@ export default function World({ session, teleportRef, achievementRef, introRef, 
     exhibitRef.current.open = false;
     let mode: { ready?: Promise<unknown> } = {};
     if (session.mode === "free") buildRaceInfo(ctx, root, { input, exhibitRef, achievementRef, driveRef });
-    else if (session.mode === "race") mode = buildRace(ctx, root, { playRef, driveRef, introRef }, { track: session.track });
+    // (split screen: player 2's own car state, position and signals)
+    const v2: VehicleState = { driving: true, x: 0, z: 0, heading: 0, speed: 0, slope: 0, s: 0, loop: -1, frozen: false, celebrate: false, wallHits: 0, slide: 0, exitAt: null };
+    const player2 = new Vector3();
+    const p2Input = { current: io.p2 };
+    const p2Teleport = { current: createTeleportSignal() };
+    const players = split
+      ? [
+          { vehicle: ctx.vehicle, name: "Player 1", color: "#ff3b30" },
+          { vehicle: v2, name: "Player 2", color: "#ffc21a" },
+        ]
+      : undefined;
+    if (session.mode === "race") mode = buildRace(ctx, root, { playRef, driveRef, introRef }, { track: session.track, players, music: musicFile() });
     else if (mission) mode = buildMission(ctx, root, { playRef, driveRef, introRef }, mission);
-    buildAmbience(ctx);
-    const car = buildCar(ctx, root, { input, teleportRef, driveRef });
+    const car = buildCar(ctx, root, { input, teleportRef, driveRef, lateral: split ? 3.2 : 0, solid: split });
+    // player 2: beside player 1 on the grid, painted yellow
+    const car2 = split ? buildCar(ctx, root, { input: p2Input, teleportRef: p2Teleport, driveRef: { current: createDriveSignal() }, vehicle: v2, player: player2, lateral: -3.2, main: false, solid: true }) : null;
+    car2?.ready
+      .then(async (holder) => {
+        const tex = await paintedTexture(scene, "#ffc21a");
+        if (tex) for (const m of holder.getChildMeshes()) if (m.material && "albedoTexture" in m.material) (m.material as { albedoTexture: unknown }).albedoTexture = tex;
+      })
+      .catch(() => {});
     const debris = buildDebris(ctx, root);
     criticalLoads.end();
     buildCameraRig(ctx, { input, teleportRef, introRef });
+    if (camera2) buildCameraRig(ctx, { input: p2Input, teleportRef: p2Teleport, introRef, camera: camera2, vehicle: v2, player: player2 });
     ctx.afterBuild.forEach((fn) => fn());
     // dev-only handle for poking at the world from the console / automated screenshots
-    if (process.env.NODE_ENV !== "production" || new URLSearchParams(location.search).has("debug")) (window as unknown as { __world?: unknown }).__world = { ctx, input, engine, loadContainer, TRACK, sampleAt, heightAt, trackS, loopPose, quality, gpu: gpuName(), play: playRef.current, session, drive: driveRef.current, mode };
+    if (process.env.NODE_ENV !== "production" || new URLSearchParams(location.search).has("debug")) (window as unknown as { __world?: unknown }).__world = { ctx, input, engine, loadContainer, TRACK, sampleAt, heightAt, trackS, loopPose, quality, gpu: gpuName(), play: playRef.current, session, drive: driveRef.current, mode, vehicle2: split ? v2 : null };
     car.ready.catch((e) => console.error("The car failed to load", e));
 
     // The start button waits until everything is loaded AND every shader is compiled — the
@@ -286,6 +338,7 @@ export default function World({ session, teleportRef, achievementRef, introRef, 
     ro.observe(canvas);
 
     return () => {
+      io.split = false;
       window.removeEventListener("resize", onResize);
       ro.disconnect();
       engine.stopRenderLoop();
@@ -299,6 +352,7 @@ export default function World({ session, teleportRef, achievementRef, introRef, 
     <div style={{ position: "absolute", inset: 0 }}>
       <canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block", touchAction: "none", outline: "none" }} />
       <div ref={overlayRef} style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }} />
+      {session.mode === "race" && session.players === 2 && <div style={{ position: "absolute", left: 0, right: 0, top: "50%", height: 3, marginTop: -1.5, background: "#0b0e15", boxShadow: "0 0 0 1px rgba(255,255,255,0.15)", pointerEvents: "none" }} />}
     </div>
   );
 }

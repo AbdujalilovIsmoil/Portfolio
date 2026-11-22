@@ -471,7 +471,7 @@ function Trophy({ place }: { place: number }) {
 
 const ordinal = (n: number) => `${n}${n === 1 ? "st" : n === 2 ? "nd" : n === 3 ? "rd" : "th"}`;
 
-type View = Pick<PlaySignal, "kind" | "state" | "count" | "lap" | "laps" | "position" | "cars" | "title" | "objective" | "progress" | "total" | "status" | "message" | "results">;
+type View = Pick<PlaySignal, "kind" | "state" | "count" | "lap" | "laps" | "position" | "cars" | "title" | "objective" | "progress" | "total" | "status" | "message" | "results" | "players">;
 
 /**
  * The race / mission on screen: lap, position and time (or the mission's progress and clock) along
@@ -492,6 +492,7 @@ export default function PlayHud(props: {
   const { playRef, missionId, onAgain, onNext, onMenu, onTracks, onOver, trackName } = props;
   const [v, setV] = useState<View | null>(null);
   const timeRef = useRef<HTMLElement>(null);
+  const speedRefs = useRef<(HTMLElement | null)[]>([]);
   const leftRef = useRef<HTMLElement>(null);
   const leftBox = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -499,12 +500,16 @@ export default function PlayHud(props: {
     let last = "";
     const tick = () => {
       const p = playRef.current;
-      const key = [p.kind, p.state, p.count, p.lap, p.position, p.progress, p.status, p.message, p.results.length].join("|");
+      const key = [p.kind, p.state, p.count, p.lap, p.position, p.progress, p.status, p.message, p.results.length, p.players.map((x) => `${x.position},${x.lap},${x.finished}`).join(";")].join("|");
       if (key !== last) {
         last = key;
-        setV({ kind: p.kind, state: p.state, count: p.count, lap: p.lap, laps: p.laps, position: p.position, cars: p.cars, title: p.title, objective: p.objective, progress: p.progress, total: p.total, status: p.status, message: p.message, results: p.results.slice() });
+        setV({ kind: p.kind, state: p.state, count: p.count, lap: p.lap, laps: p.laps, position: p.position, cars: p.cars, title: p.title, objective: p.objective, progress: p.progress, total: p.total, status: p.status, message: p.message, results: p.results.slice(), players: p.players.map((x) => ({ ...x })) });
       }
-      // the clocks tick every frame: straight on the DOM
+      // the clocks (and, split screen, the speeds) tick every frame: straight on the DOM, no re-render
+      p.players.forEach((x, i) => {
+        const el = speedRefs.current[i];
+        if (el && !x.finished) el.textContent = String(Math.round(x.speed * 3.6));
+      });
       if (timeRef.current) timeRef.current.textContent = formatLap(p.time);
       if (leftRef.current) leftRef.current.textContent = p.timeLeft === null ? "—" : formatLap(Math.max(0, p.timeLeft));
       leftBox.current?.classList.toggle("low", p.timeLeft !== null && p.timeLeft < 10);
@@ -527,7 +532,29 @@ export default function PlayHud(props: {
 
   return (
     <>
-      {(v.state === "countdown" || v.state === "on") && (
+      {(v.state === "countdown" || v.state === "on") && v.players.length > 1 &&
+        v.players.map((pl, i) => (
+          // split screen: each player's bar at the top of their half
+          <Bar key={pl.name} style={{ top: i === 0 ? 12 : "calc(50% + 12px)", bottom: "auto" }}>
+            <div style={{ background: pl.color, color: "#14110a" }}>
+              <small style={{ color: "rgba(20,17,10,0.65)" }}>{pl.name}</small>
+              <b>
+                {pl.position}/{v.cars}
+              </b>
+            </div>
+            <div>
+              <small>Lap</small>
+              <b>
+                {pl.lap}/{v.laps}
+              </b>
+            </div>
+            <div>
+              <small>{pl.finished ? "Finished" : "Speed"}</small>
+              <b ref={(el) => void (speedRefs.current[i] = el)}>{pl.finished ? "🏁" : "0"}</b>
+            </div>
+          </Bar>
+        ))}
+      {(v.state === "countdown" || v.state === "on") && v.players.length < 2 && (
         <Bar>
           {racing && (
             <>
@@ -573,7 +600,7 @@ export default function PlayHud(props: {
       {over && v.state === "won" && race && (
         <Banner key="banner">
           <span className="p">P1 · {trackName ?? "Race"}</span>
-          <span className="big">Victory</span>
+          <span className="big">{v.players.length > 1 ? `${v.results[0]?.name ?? "Player"} wins` : "Victory"}</span>
           <div className="sub">Chequered flag — first of {v.cars}</div>
         </Banner>
       )}
@@ -609,20 +636,26 @@ function ResultPanel(props: {
   const rows = v.results;
   const lead = rows[0]?.time ?? 0;
   const you = rows.find((r) => r.you);
+  // (split screen: two players in the table — each by name)
+  const multi = rows.filter((r) => r.you).length > 1;
   const fastest = rows.reduce<number | null>((m, r) => (r.best !== null && (m === null || r.best < m) ? r.best : m), null);
   const second = rows[1]?.time ?? null;
   const gapLabel = place === 1 && second !== null ? `−${(second - lead).toFixed(3)}` : you?.time != null ? `+${(you.time - lead).toFixed(3)}` : "—";
-  const verdict = classified
+  const verdict = multi
     ? place === 1
-      ? race
-        ? `Victory — you beat all ${v.cars - 1} rivals`
-        : "You beat the rival"
-      : place <= 3
-        ? `A podium finish — ${ordinal(place)} of ${v.cars}`
-        : `${ordinal(place)} of ${v.cars} — the podium is close`
-    : won
-      ? "Mission complete"
-      : v.message || "Try again";
+      ? `${you?.name ?? "Player"} wins — first of ${v.cars}`
+      : `${you?.name ?? "Player"} the best of you — ${ordinal(place)} of ${v.cars}`
+    : classified
+      ? place === 1
+        ? race
+          ? `Victory — you beat all ${v.cars - 1} rivals`
+          : "You beat the rival"
+        : place <= 3
+          ? `A podium finish — ${ordinal(place)} of ${v.cars}`
+          : `${ordinal(place)} of ${v.cars} — the podium is close`
+      : won
+        ? "Mission complete"
+        : v.message || "Try again";
 
   return (
     <Result style={style}>
@@ -666,7 +699,7 @@ function ResultPanel(props: {
                   {i + 1}
                 </span>
                 <span className="stripe" style={{ background: r.color }} />
-                <span className="name">{r.you ? "You" : r.name}</span>
+                <span className="name">{r.you && !multi ? "You" : r.name}</span>
                 <span className="time">{r.time === null ? "—" : i === 0 ? formatLap(r.time) : `+${(r.time - lead).toFixed(3)}`}</span>
                 <span className={`best${r.best !== null && r.best === fastest ? " fl" : ""}`}>{r.best !== null ? formatLap(r.best) : ""}</span>
               </div>

@@ -24,6 +24,8 @@ export interface PlaySignal {
   status: string;
   /** why it ended ("Time's up", "You touched the wall"…) */
   message: string;
+  /** split screen: each player's name, colour, lap, place and speed (m/s); empty otherwise */
+  players: { name: string; color: string; lap: number; position: number; speed: number; finished: boolean }[];
   /** the race's finishing order (or the mission's result: one row) */
   results: { name: string; color: string; time: number | null; best: number | null; you: boolean }[];
 }
@@ -45,5 +47,6 @@ export const createPlaySignal = (): PlaySignal => ({
   timeLeft: null,
   status: "",
   message: "",
+  players: [],
   results: [],
 });

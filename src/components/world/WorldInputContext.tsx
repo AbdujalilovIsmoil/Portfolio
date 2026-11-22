@@ -10,7 +10,8 @@ export interface MoveState {
   run: boolean;
 }
 
-export interface WorldInput {
+/** One driver's controls (the car and the camera read these). */
+export interface DriverInput {
   move: MoveState;
   joystick: { x: number; y: number };
   /** Right-side mobile touch stick for camera look, integrated continuously (rate control) rather than applied as an absolute delta. */
@@ -30,6 +31,23 @@ export interface WorldInput {
   /** Accumulated look angles (radians): dragging on the 3D view with the mouse (or the touch look stick) turns the camera round the car. */
   look: { yaw: number; pitch: number };
 }
+
+export interface WorldInput extends DriverInput {
+  /** Split screen (a race for two): the keyboard is shared — WASD, left Shift, Space and R drive player 1; the arrows, right Shift, Enter (or right Ctrl) and Backspace drive player 2 (`p2`). */
+  split: boolean;
+  p2: DriverInput;
+}
+
+/** Player 2's keys (split screen). */
+const P2_MAP: Record<string, keyof MoveState> = {
+  ArrowUp: "forward",
+  ArrowDown: "backward",
+  ArrowLeft: "left",
+  ArrowRight: "right",
+  ShiftRight: "run",
+};
+const P2_BRAKE = ["Enter", "NumpadEnter", "ControlRight"];
+const P2_RESET = "Backspace";
 
 const KEY_MAP: Record<string, keyof MoveState> = {
   KeyW: "forward",
@@ -55,7 +73,7 @@ const LOOK_SENSITIVITY = 0.0022;
 const InputContext = createContext<React.MutableRefObject<WorldInput> | null>(null);
 
 export function WorldInputProvider({ children }: { children: React.ReactNode }) {
-  const ref = useRef<WorldInput>({
+  const driver = (): DriverInput => ({
     move: { forward: false, backward: false, left: false, right: false, run: false },
     joystick: { x: 0, y: 0 },
     lookJoystick: { x: 0, y: 0 },
@@ -67,10 +85,31 @@ export function WorldInputProvider({ children }: { children: React.ReactNode }) 
     spaceHeld: false,
     look: { yaw: 0, pitch: INITIAL_PITCH },
   });
+  const ref = useRef<WorldInput>({ ...driver(), split: false, p2: driver() });
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (ref.current.locked) return;
+      if (ref.current.split) {
+        // (split screen: the right-hand keys are player 2's)
+        const p2 = ref.current.p2;
+        const k2 = P2_MAP[e.code];
+        if (k2) {
+          p2.move[k2] = true;
+          e.preventDefault();
+          return;
+        }
+        if (P2_BRAKE.includes(e.code)) {
+          p2.spaceHeld = true;
+          e.preventDefault();
+          return;
+        }
+        if (e.code === P2_RESET) {
+          if (!e.repeat) p2.resetId++;
+          e.preventDefault();
+          return;
+        }
+      }
       const key = KEY_MAP[e.code];
       if (key) ref.current.move[key] = true;
       if (e.code === "KeyF" && !e.repeat) ref.current.interactId++;
@@ -83,6 +122,17 @@ export function WorldInputProvider({ children }: { children: React.ReactNode }) 
       }
     };
     const up = (e: KeyboardEvent) => {
+      if (ref.current.split) {
+        const k2 = P2_MAP[e.code];
+        if (k2) {
+          ref.current.p2.move[k2] = false;
+          return;
+        }
+        if (P2_BRAKE.includes(e.code)) {
+          ref.current.p2.spaceHeld = false;
+          return;
+        }
+      }
       const key = KEY_MAP[e.code];
       if (key) ref.current.move[key] = false;
       if (e.code === "Space") ref.current.spaceHeld = false;

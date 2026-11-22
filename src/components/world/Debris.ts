@@ -266,7 +266,8 @@ export function buildDebris(ctx: Ctx, parent: Node) {
         d.age = 0;
         d.mesh.setEnabled(true);
       }
-      playCrunch(k);
+      // (a sound only for a real knock: brushing a wall is silent)
+      if (speed > 8) playCrunch(k);
     },
     scrape(p, n, up, speed, fl) {
       if (speed < 6) return;

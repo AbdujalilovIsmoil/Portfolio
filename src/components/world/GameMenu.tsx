@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { formatLap } from "./driveSignal";
-import { MISSIONS, TRACKS, TRACK_IDS, type Mode, type Session, type TrackId } from "./game";
+import { MISSIONS, MUSIC, TRACKS, TRACK_IDS, type Mode, type MusicId, type Session, type TrackId } from "./game";
+import { getMusic, setMusic } from "./musicChoice";
 import { useProgress } from "./progress";
 import { buildTrack } from "./Track";
 
@@ -328,6 +329,58 @@ const ModeCard = styled.button<{ $c: string; $img: string; $pos: string }>`
   }
 `;
 
+/** A row of choices before the tracks: how many players, which music. */
+const Options = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 28px;
+  align-items: flex-start;
+  margin: -6px 0 18px;
+  .label {
+    display: block;
+    margin-bottom: 7px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: rgba(238, 242, 250, 0.55);
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  button {
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.05);
+    color: #eef2fa;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font: 700 13px var(--font-nav);
+    cursor: pointer;
+    text-align: left;
+  }
+  button small {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(238, 242, 250, 0.55);
+  }
+  button.on {
+    border-color: #ff3b6b;
+    background: color-mix(in srgb, #ff3b6b 22%, transparent);
+  }
+  .keys {
+    margin-top: 8px;
+    font-size: 12px;
+    color: rgba(238, 242, 250, 0.6);
+    line-height: 1.6;
+  }
+  .keys b {
+    color: #fff;
+  }
+`;
+
 const Grid = styled.div<{ $min: number }>`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(${({ $min }) => $min}px, 1fr));
@@ -443,12 +496,15 @@ export default function GameMenu(props: {
   progress: number;
   /** a game is going on behind the menu (it can be resumed) */
   canResume: boolean;
-  onPick: (mode: Mode, track: TrackId, mission: string | null) => void;
+  onPick: (mode: Mode, track: TrackId, mission: string | null, players?: 1 | 2) => void;
   onResume: () => void;
   screen: MenuScreen;
   onScreen: (s: MenuScreen) => void;
 }) {
   const { pending, progress, canResume, onPick, onResume, screen, onScreen } = props;
+  // a race: one player or two (split screen), and the music (remembered)
+  const [players, setPlayers] = useState<1 | 2>(1);
+  const [music, setMusicState] = useState<MusicId>(() => getMusic());
   const saved = useProgress();
   const lengths = useMemo(() => Object.fromEntries(TRACK_IDS.map((id) => [id, trackLength(id)])) as Record<TrackId, number>, []);
   const done = MISSIONS.filter((m) => saved.missions[m.id]).length;
@@ -529,11 +585,49 @@ export default function GameMenu(props: {
               </div>
               <Back onClick={() => onScreen("home")}>← Back</Back>
             </Head>
+            <Options>
+              <div>
+                <span className="label">Players</span>
+                <div className="chips">
+                  <button className={players === 1 ? "on" : ""} onClick={() => setPlayers(1)}>
+                    1 player
+                  </button>
+                  <button className={players === 2 ? "on" : ""} onClick={() => setPlayers(2)}>
+                    2 players<small>split screen</small>
+                  </button>
+                </div>
+                {players === 2 && (
+                  <div className="keys">
+                    <b>Top · Player 1:</b> W A S D · Left Shift nitro · Space handbrake · R back on track
+                    <br />
+                    <b>Bottom · Player 2:</b> Arrows · Right Shift nitro · Enter handbrake · Backspace back on track
+                  </div>
+                )}
+              </div>
+              <div>
+                <span className="label">Music</span>
+                <div className="chips">
+                  {MUSIC.map((m) => (
+                    <button
+                      key={m.id}
+                      className={music === m.id ? "on" : ""}
+                      onClick={() => {
+                        setMusic(m.id);
+                        setMusicState(m.id);
+                      }}
+                    >
+                      {m.name}
+                      <small>{m.style}</small>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </Options>
             <Grid $min={220}>
               {TRACK_IDS.map((id) => {
                 const r = saved.races[id];
                 return (
-                  <Small key={id} $c="#ff3b6b" onClick={() => onPick("race", id, null)}>
+                  <Small key={id} $c="#ff3b6b" onClick={() => onPick("race", id, null, players)}>
                     <TrackShape id={id} color="#ff3b6b" />
                     <h2>{TRACKS[id].name}</h2>
                     <p>{TRACKS[id].blurb}</p>

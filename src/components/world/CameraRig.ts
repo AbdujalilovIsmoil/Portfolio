@@ -1,10 +1,10 @@
-import { Vector3 } from "@babylonjs/core";
+import { Vector3, type FreeCamera } from "@babylonjs/core";
 import type { MutableRefObject } from "react";
 import { ROAD_HALF, TILE, TRACK, groundAt, lateralOf, loopView, startPose, trackS } from "./Track";
-import { clamp, lerp, type Ctx } from "./core";
+import { clamp, lerp, type Ctx, type VehicleState } from "./core";
 import type { IntroSignal } from "./introSignal";
 import type { TeleportSignal } from "./teleportSignal";
-import type { WorldInput } from "./WorldInputContext";
+import type { DriverInput } from "./WorldInputContext";
 
 /** How far behind the car the camera sits — always, at any speed. */
 const RADIUS = 9.5;
@@ -32,11 +32,21 @@ const smooth = (k: number) => k * k * (3 - 2 * k);
  */
 export function buildCameraRig(
   ctx: Ctx,
-  deps: { input: MutableRefObject<WorldInput>; teleportRef: MutableRefObject<TeleportSignal>; introRef: MutableRefObject<IntroSignal> }
+  deps: {
+    input: MutableRefObject<DriverInput>;
+    teleportRef: MutableRefObject<TeleportSignal>;
+    introRef: MutableRefObject<IntroSignal>;
+    /** split screen: player 2's camera, car and position (else the world's own) */
+    camera?: FreeCamera;
+    vehicle?: VehicleState;
+    player?: Vector3;
+    lateral?: number;
+  }
 ) {
   const { input, teleportRef, introRef } = deps;
-  const { camera, player } = ctx;
-  const v = ctx.vehicle;
+  const camera = deps.camera ?? ctx.camera;
+  const player = deps.player ?? ctx.player;
+  const v = deps.vehicle ?? ctx.vehicle;
   const desired = new Vector3();
   const lookTarget = new Vector3();
   /** where the spring arm starts: just above the car itself (the look-ahead point may be inside a hill) */

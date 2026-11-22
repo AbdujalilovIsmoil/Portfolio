@@ -55,7 +55,7 @@ export default function Experience() {
   );
 }
 
-const sameGame = (a: Session, mode: Mode, track: TrackId, mission: string | null) => a.mode === mode && a.track === track && a.mission === mission;
+const sameGame = (a: Session, mode: Mode, track: TrackId, mission: string | null, players: 1 | 2 = 1) => a.mode === mode && a.track === track && a.mission === mission && a.players === (mode === "race" ? players : 1);
 
 /**
  * The game: the menu (how to play, which track, which mission), the 3D world built for the choice,
@@ -85,28 +85,29 @@ function Game() {
   useEffect(() => {
     pauseRef.current = menu.open;
     /* eslint-disable react-hooks/immutability */
-    input.current.locked = menu.open || over;
-    if (menu.open) {
-      const mv = input.current.move;
-      mv.forward = mv.backward = mv.left = mv.right = mv.run = false;
-      input.current.spaceHeld = false;
-    }
+    input.current.locked = input.current.p2.locked = menu.open || over;
+    if (menu.open)
+      for (const d of [input.current, input.current.p2]) {
+        const mv = d.move;
+        mv.forward = mv.backward = mv.left = mv.right = mv.run = false;
+        d.spaceHeld = false;
+      }
     /* eslint-enable react-hooks/immutability */
   }, [menu.open, over, input]);
 
   const pick = useCallback(
-    (mode: Mode, track: TrackId, mission: string | null) => {
+    (mode: Mode, track: TrackId, mission: string | null, players: 1 | 2 = 1) => {
       warmAudio();
-      if (sameGame(session, mode, track, mission) && !started) {
+      if (sameGame(session, mode, track, mission, players) && !started) {
         // (already built behind the menu: start as soon as it is loaded)
         setPending({ s: session, gen: -1 });
         return;
       }
-      if (sameGame(session, mode, track, mission) && mode === "free") {
+      if (sameGame(session, mode, track, mission, players) && mode === "free") {
         setMenu((m) => ({ ...m, open: false }));
         return;
       }
-      const next = { mode, track, mission, key: Date.now() };
+      const next: Session = { mode, track, mission, players: mode === "race" ? players : 1, key: Date.now() };
       setSession(next);
       setStarted(false);
       setPending({ s: next, gen: generation });

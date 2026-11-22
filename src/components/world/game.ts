@@ -22,13 +22,13 @@ export interface TrackDef {
 
 export const TRACKS: Record<TrackId, TrackDef> = {
   circuit: { id: "circuit", name: "Grand Circuit", blurb: "Hairpins, a chicane, two hills and the loop-the-loop", layout: LAYOUT },
-  speedway: { id: "speedway", name: "Speedway", blurb: "A fast oval: under the aquarium, through a tunnel, right-left-left-right up on the hill", layout: "S S S GRID START S S SUB S R3 R3 TUN S UP R2 L2 L2 R2 DN R3 R3".split(" ") },
-  valley: { id: "valley", name: "Hairpin Valley", blurb: "Straight under the aquarium, three hairpins, a tunnel and an S-bend on a hilltop", layout: "S S S GRID START SUB S S HR S S TUN S S S S HL S S S S S HR UP L2 R2 R2 L2 DN S R3 S R3 S S".split(" ") },
+  speedway: { id: "speedway", name: "Speedway", blurb: "A fast oval: under the aquarium, through a tunnel, right-left-left-right up on the hill", layout: "S S S GRID START S S SUB S R3 R3 S S S S TUN S UP R2 L2 L2 R2 DN R3 R3".split(" ") },
+  valley: { id: "valley", name: "Hairpin Valley", blurb: "Straight under the aquarium, three hairpins, a tunnel and an S-bend on a hilltop", layout: "S S S GRID START SUB S S HR S S S S S S TUN S S S S HL S S S S S HR UP L2 R2 R2 L2 DN S R3 S R3 S S".split(" ") },
   mountain: {
     id: "mountain",
     name: "Loop Mountain",
     blurb: "The aquarium, a loop-the-loop, a tunnel and a chicane on top of the second hill",
-    layout: "S S S GRID START SUB S S UP BR DN S R3 S S S S LOOP S S R3 S TUN S S UP R2 L2 L2 R2 DN S S S S R3 S S S S S S S S R3".split(" "),
+    layout: "S S S GRID START SUB S S UP BR DN S R3 S S S S LOOP S S R3 S S S S S TUN S S UP R2 L2 L2 R2 DN S S S S R3 S S S S S S S S R3".split(" "),
   },
 };
 
@@ -80,7 +80,19 @@ export interface Session {
   mode: Mode;
   track: TrackId;
   mission: string | null;
+  /** a race for two, split screen (top: player 1, bottom: player 2) */
+  players: 1 | 2;
   key: number;
 }
 
-export const FREE_SESSION: Session = { mode: "free", track: "circuit", mission: null, key: 0 };
+/** The race music to pick from (all CC0, from OpenGameArt; files in public/sounds). */
+export const MUSIC = [
+  { id: "xenon-phoenix", name: "Xenon Phoenix", style: "Electro-rock", author: "northivanastan", file: "music-xenon-phoenix.mp3" },
+  { id: "determined-pursuit", name: "Determined Pursuit", style: "Epic orchestra", author: "Emma_MA", file: "music-determined-pursuit.mp3" },
+  { id: "osiris-monolith", name: "Osiris Monolith", style: "Dark synth", author: "Bobjt", file: "music-osiris-monolith.mp3" },
+  { id: "trammelod", name: "Trammelod", style: "Techno", author: "cinameng", file: "music-trammelod.mp3" },
+  { id: "off", name: "No music", style: "Just the engines", author: "", file: "" },
+] as const;
+export type MusicId = (typeof MUSIC)[number]["id"];
+
+export const FREE_SESSION: Session = { mode: "free", track: "circuit", mission: null, players: 1, key: 0 };

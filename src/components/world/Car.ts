@@ -1,13 +1,13 @@
-import { Quaternion, Vector3, type Node, type ShaderMaterial, type TransformNode } from "@babylonjs/core";
+import { Color3, Quaternion, SpotLight, Vector3, type Node, type ShaderMaterial, type TransformNode } from "@babylonjs/core";
 import type { MutableRefObject } from "react";
 import { instantiate } from "./assets";
 import type { DriveSignal } from "./driveSignal";
 import { buildExhaust } from "./Exhaust";
-import { createEngineSample, peekCtx, playImpactThud, playWhoosh, type EngineSound } from "./sound";
+import { createNitroSound, createSynthEngine, peekCtx, playWhoosh, type EngineSound, type NitroSound } from "./sound";
 import type { TeleportSignal } from "./teleportSignal";
-import { SURFACE, TRACK, WALL_IN, heightAt, lateralOf, loopPose, sampleAt, startPose, trackS } from "./Track";
-import type { WorldInput } from "./WorldInputContext";
-import { Instancer, boxHit, clamp, disc, group, lerp, points, setEuler, unlit, type Ctx, type DynamicCollider } from "./core";
+import { SURFACE, TRACK, WALL_IN, heightAt, lateralOf, loopPose, sampleAt, startPose, trackS, undergroundAt } from "./Track";
+import type { DriverInput } from "./WorldInputContext";
+import { Instancer, LIGHT_SCALE, boxHit, clamp, disc, group, lerp, points, setEuler, unlit, type Ctx, type DynamicCollider, type VehicleState } from "./core";
 
 /** Kenney Car Kit "race" (CC0): 2.56 units long, wheels of radius 0.3, front towards +z. */
 export const CAR_FILE = "race.glb";
@@ -62,9 +62,18 @@ const wrapAngle = (a: number) => {
 };
 
 export interface CarDeps {
-  input: MutableRefObject<WorldInput>;
+  input: MutableRefObject<DriverInput>;
   teleportRef: MutableRefObject<TeleportSignal>;
   driveRef: MutableRefObject<DriveSignal>;
+  /** split screen: this car's own state and position (else the world's one car: ctx.vehicle, ctx.player) */
+  vehicle?: VehicleState;
+  player?: Vector3;
+  /** where on the grid it starts: metres left of the centre line */
+  lateral?: number;
+  /** the world's main car (the one the minimap, the teleports and the tests follow) — false for player 2 */
+  main?: boolean;
+  /** solid to the other player's car (split screen): it is put in ctx.dynamic as a box the other car hits */
+  solid?: boolean;
 }
 
 /**
@@ -78,8 +87,10 @@ export interface CarDeps {
  */
 export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
   const { input, teleportRef, driveRef } = deps;
-  const v = ctx.vehicle;
-  const start = startPose();
+  const v = deps.vehicle ?? ctx.vehicle;
+  const me = deps.player ?? ctx.player;
+  const main = deps.main ?? true;
+  const start = startPose(deps.lateral ?? 0);
   v.driving = true;
   v.x = start.x;
   v.z = start.z;
@@ -116,7 +127,8 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
   const root = group(ctx, { parent, pos: [v.x, 0, v.z] });
   const tilt = group(ctx, { parent: root });
   const wheels: { node: TransformNode; base: Quaternion; front: boolean }[] = [];
-  const ready = instantiate(ctx, CAR_FILE, tilt, { scale: SCALE, cast: true }).then((holder) => {
+  // (player 2: a copy with materials of its own, so it can be painted without painting player 1)
+  const ready = instantiate(ctx, CAR_FILE, tilt, { scale: SCALE, cast: true, clone: !main }).then((holder) => {
     for (const mesh of holder.getChildMeshes()) mesh.isPickable = false; // the camera arm must not hit the car
     for (const n of holder.getDescendants(false) as TransformNode[]) {
       if (!/^wheel-(front|back)-(left|right)$/.test(n.name)) continue;
@@ -135,6 +147,19 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
     return p.material as ShaderMaterial;
   };
   const tailGlow = lamp([-0.62, 0.62], 0.62, -2.22, "#ff3b30", 2.4);
+  // ---- headlights — only underground (in a tunnel, the aquarium): the lamps themselves, and the
+  // light they throw down the road (a real light: it lights the road, the walls, the cars ahead)
+  const headGlow = lamp([-0.55, 0.55], 0.58, 2.18, "#fff4dc", 3.4);
+  headGlow.setFloat("uOpacity", 0);
+  let lightsOn = 0;
+  const beam = new SpotLight("headlights", new Vector3(0, 1.1, 2.3), new Vector3(0, -0.13, 1), 1.0, 1.6, ctx.scene);
+  beam.parent = tilt;
+  beam.diffuse = new Color3(1, 0.95, 0.85);
+  beam.specular = new Color3(0.6, 0.6, 0.55);
+  beam.intensity = 0;
+  beam.range = 60; // (the road ahead, not the buildings across the street)
+  // (never switched off, only dimmed to nothing: switching a light on or off changes how many lights
+  // every material is compiled for — a recompile of everything in view, a freeze of a few hundred ms)
   // ---- tailpipes, and the nitro's flames out of them
   const exhaust = buildExhaust(ctx, tilt);
 
@@ -150,11 +175,17 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
   // ---- engine: a real recording, pitched by the speed (once audio is unlocked by the Start click)
   let engine: EngineSound | null = null;
   let engineLoading = false;
-  const onHidden = () => engine?.set(0, 0, true);
+  // ---- the nitro's roar (synthesized), with the engine pushed harder while it burns
+  let nitro: NitroSound | null = null;
+  const onHidden = () => {
+    engine?.set(0, 0, true);
+    nitro?.set(false, 0);
+  };
   document.addEventListener("visibilitychange", onHidden);
   ctx.scene.onDisposeObservable.addOnce(() => {
     document.removeEventListener("visibilitychange", onHidden);
     engine?.dispose();
+    nitro?.dispose();
   });
 
   const B = TRACK.bounds;
@@ -205,7 +236,7 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
 
   /** Back onto the track: the nearest point of the centre line, facing along the lap (off the loop: before it). */
   const reset = (anywhere = false) => {
-    let q = anywhere ? startPose() : TRACK.samples[trackS(v.x, v.z, hint).i];
+    let q = anywhere ? startPose(deps.lateral ?? 0) : TRACK.samples[trackS(v.x, v.z, hint).i];
     if (!anywhere && LP && (loopD >= 0 || (TRACK.samples[hint]?.s ?? 0) > LP.s0 + LP.climbIn - 2 && (TRACK.samples[hint]?.s ?? 0) < LP.s0 + LP.climbOut)) {
       // back to the run-in, facing the loop
       const p = loopPose(LP.climbIn - 6);
@@ -222,7 +253,7 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
     y = roadY(q.x, q.z);
     teleportRef.current.value++;
   };
-  ctx.teleportPlayer = (x, z) => {
+  const teleport = (x: number, z: number) => {
     travel = v.heading; // (put down somewhere else, it isn't still sliding)
     loopD = -1;
     v.loop = -1;
@@ -234,10 +265,32 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
     teleportRef.current.value++;
   };
 
+  if (main) ctx.teleportPlayer = teleport;
+
+  /** This car as the other player's car sees it (split screen): a box, shoved when that car hits it. */
+  const self: DynamicCollider = {
+    x: v.x,
+    z: v.z,
+    r: CAR_HALF_L + 0.2,
+    solid: true,
+    vx: 0,
+    vz: 0,
+    box: { hw: CAR_HALF_W, hl: CAR_HALF_L, h: v.heading },
+    push: (dvx, dvz, ox, oz) => {
+      // its velocity changed by the knock: speed along the nose, the rest a slide the grip soaks up
+      const vx = Math.sin(travel) * v.speed + dvx, vz = Math.cos(travel) * v.speed + dvz;
+      const back = vx * Math.sin(v.heading) + vz * Math.cos(v.heading) < 0;
+      v.speed = Math.hypot(vx, vz) * (back ? -1 : 1);
+      if (Math.hypot(vx, vz) > 0.5) travel = v.heading + clamp(wrapAngle(Math.atan2(vx, vz) + (back ? Math.PI : 0) - v.heading), -0.7, 0.7);
+      v.x += ox;
+      v.z += oz;
+    },
+  };
+  if (deps.solid) ctx.dynamic.push(self);
+
   /** Hit (or scrape along) a wall at (x, y, z) whose face looks along n, the road's up being `up`. */
   const wallHit = (p: [number, number, number], n: [number, number, number], up: [number, number, number], across: number, along: number, floor: number) => {
     if (across > 4 && lastBump <= 0) {
-      playImpactThud(Math.min(1, across / 16));
       ctx.debris?.hit(p, n, up, across, floor, [Math.sin(travel) * v.speed, 0, Math.cos(travel) * v.speed]);
       lastBump = 0.4;
     } else if (Math.abs(along) > 6 && scrapeClock <= 0) {
@@ -446,7 +499,6 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
           vx = (vx - vn * nx) * keep + nx * into * (fresh ? 0.2 : 0);
           vz = (vz - vn * nz) * keep + nz * into * (fresh ? 0.2 : 0);
           if (fresh) {
-            playImpactThud(Math.min(1, into / 18));
             lastBump = 0.4;
           }
         }
@@ -523,7 +575,6 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
           const dir = Math.atan2(wx, wz) + (back ? Math.PI : 0);
           travel = v.heading + clamp(wrapAngle(dir - v.heading), -0.7, 0.7);
           if (into > 4 && lastBump <= 0) {
-            playImpactThud(Math.min(1, into / 16));
             lastBump = 0.4;
             // a real knock off-centre (at the nose or the tail) turns the car a little — once, not every frame they rub
             v.heading += clamp((nx * fz - nz * fx) * J * 0.012 * k, -0.06, 0.06);
@@ -534,6 +585,7 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
       // (twice for the cars: a knock turns the car a little, which can tip a corner back in — the second
       // pass puts it out; the speeds have been traded already, so it only moves the car)
       for (const c of ctx.dynamic) {
+        if (c === self) continue;
         if (c.box) {
           // another car: body against body (boxes), so they meet where they really touch
           if (Math.hypot(v.x - c.x, v.z - c.z) > c.r + CAR_HALF_L + 0.5) continue;
@@ -605,7 +657,12 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
 
     // ---- brake lights
     const braking = (throttle < 0 && s > 0.5) || handbrake;
-    tailGlow.setFloat("uOpacity", braking ? 0.95 : 0);
+    // ---- the lights: on as the car goes down into a tunnel, off again as it comes up (eased)
+    lightsOn += (undergroundAt(v.s) - lightsOn) * Math.min(1, dt * 4);
+    beam.intensity = lightsOn > 0.02 ? 140 * LIGHT_SCALE * lightsOn : 0;
+    headGlow.setFloat("uOpacity", 0.95 * lightsOn);
+    // (tail lights: bright when braking; dimly on, with the headlights, underground)
+    tailGlow.setFloat("uOpacity", braking ? 0.95 : 0.4 * lightsOn);
 
     // ---- tyre smoke when sliding
     const dusty = !onLoop && Math.abs(s) > 5 && slide > 0.2;
@@ -642,14 +699,22 @@ export function buildCar(ctx: Ctx, parent: Node, deps: CarDeps) {
     const ac = peekCtx();
     if (!engine && !engineLoading && ac) {
       engineLoading = true;
-      createEngineSample(ac, "/sounds/engine.wav")
-        .then((e) => (engine = e))
-        .catch(() => {}); // sound is optional
+      engine = createSynthEngine(ac);
     }
-    engine?.set(s, Math.abs(throttle), locked || document.hidden);
+    if (!nitro && ac) nitro = createNitroSound(ac);
+    const burning = boost && !document.hidden;
+    engine?.set(s, Math.abs(throttle), locked || document.hidden, burning ? 1 : 0);
+    nitro?.set(burning, Math.abs(s));
 
     // ---- share where we are
-    ctx.player.set(v.x, y, v.z);
+    me.set(v.x, y, v.z);
+    // (split screen: this car, as the other player's car meets it)
+    self.x = v.x;
+    self.z = v.z;
+    self.box!.h = v.heading;
+    self.vx = Math.sin(travel) * v.speed;
+    self.vz = Math.cos(travel) * v.speed;
+    if (!main) return;
     const d = driveRef.current;
     d.x = v.x;
     d.z = v.z;

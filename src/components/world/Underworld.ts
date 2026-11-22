@@ -15,8 +15,9 @@ import {
   type Node,
 } from "@babylonjs/core";
 import { asphaltTexture, concreteTexture, kerbTexture } from "./RaceTrack";
-import { PIT_HALF, ROAD_HALF, SURFACE, TILE, TRACK, TRENCH_HALF, TUBE_R, UNDER, WALL_IN, heightAt } from "./Track";
+import { PIT_HALF, ROAD_HALF, SURFACE, TILE, TRACK, TRENCH_HALF, TUBE_R, UNDER, WALL_IN, heightAt, undergroundAt } from "./Track";
 import { canvasTexture, glowTexture, group, hash, lit, setAdditive, unlit, type Ctx } from "./core";
+import { createWaterSound, peekCtx, setUnderwater, type WaterSound } from "./sound";
 
 /*
  * Under the lawn: the cuttings down, the covered concrete tunnels (TUN) and the aquarium (SUB) — a
@@ -951,6 +952,28 @@ function buildAquarium(ctx: Ctx, root: Node, u: U) {
     { hair: "#d9a84a", tail: ["#2a8cff", "#14c7a8"], path: loop(722, 1.6, 2.8) },
     { hair: "#1d1410", tail: ["#c14bd6", "#2a5bd8"], path: loop(833, 1.7, 2.8) },
   ].map((o, i) => ({ ...buildMermaid(ctx, root, o.hair, o.tail as [string, string], i), path: o.path }));
+
+  // ---- the sound of the water: rising as the car goes down to the tube, full under the water
+  let water: WaterSound | null = null;
+  ctx.scene.onDisposeObservable.addOnce(() => {
+    water?.dispose();
+    setUnderwater(0);
+  });
+  ctx.onFrame(() => {
+    const d = ctx.vehicle.s - u.s0;
+    const inside = d > 0 && d < u.length;
+    const level = inside && !ctx.paused ? undergroundAt(ctx.vehicle.s) * Math.min(1, Math.min(d - A1 + 30, A2 + 30 - d) / 30) : 0;
+    if (!water) {
+      if (level <= 0) return;
+      const ac = peekCtx();
+      if (!ac) return;
+      water = createWaterSound(ac);
+    }
+    const k = Math.max(0, Math.min(1, level));
+    water.set(k);
+    // (everything else heard as through water)
+    setUnderwater(k);
+  });
 
   // ---- move it all (only near enough to see)
   const toWorld = (p: [number, number, number]) => local(p[0], p[1], p[2]);

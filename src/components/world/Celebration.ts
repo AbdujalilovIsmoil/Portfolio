@@ -1,6 +1,6 @@
 import { Color4, ParticleSystem, Vector3 } from "@babylonjs/core";
 import { canvasTexture, glowTexture, type Ctx } from "./core";
-import { playFanfare, playFireworkBoom } from "./sound";
+import { playFanfare } from "./sound";
 
 /** A shell's colours: the sparks start at `a`…`b` and burn out towards `dead`. */
 const SHELLS: { a: string; b: string; dead: string; life: [number, number]; fall: number; size: number; crackle?: boolean }[] = [
@@ -232,9 +232,6 @@ export function buildCelebration(ctx: Ctx) {
       burstSys[r.shell].emit(r.x, r.y, r.z, SPARKS);
       flash.emit(r.x, r.y, r.z, 1);
       if (s.crackle) sparkles.push({ x: r.x, y: r.y, z: r.z, left: 2.6 });
-      // (how far the bang has to travel to the camera)
-      const cam = ctx.camera.position;
-      playFireworkBoom(Math.hypot(r.x - cam.x, r.y - cam.y, r.z - cam.z));
     }
     // the gold willow glitters as it falls: winks scattered through where its sparks now are
     for (let i = sparkles.length - 1; i >= 0; i--) {

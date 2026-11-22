@@ -1,4 +1,5 @@
 import { Color3, Mesh, MeshBuilder, type InstancedMesh, type Node, type StandardMaterial } from "@babylonjs/core";
+import { musicFile } from "./musicChoice";
 import type { MutableRefObject } from "react";
 import { Countdown } from "./countdown";
 import { formatLap, type DriveSignal } from "./driveSignal";
@@ -620,7 +621,7 @@ export function buildMission(ctx: Ctx, parent: Node, deps: MissionDeps, def: Mis
 
   // the duel is a one-lap race against one rival
   if (def.kind === "duel") {
-    const race = buildRace(ctx, root, deps, { laps: 2, rivals: [{ name: "The Rival", color: "#ff3b6b" }], skills: [1.04] });
+    const race = buildRace(ctx, root, deps, { laps: 2, rivals: [{ name: "The Rival", color: "#ff3b6b" }], skills: [1.04], music: musicFile() });
     Object.assign(play, { kind: "mission", title: def.title, objective: def.brief });
     let saved = false;
     ctx.onFrame(() => {

@@ -1,8 +1,8 @@
-import { Quaternion, Texture, TransformNode, Vector3, type Node, type PBRMaterial, type Scene } from "@babylonjs/core";
+import { Quaternion, Texture, TransformNode, Vector3, type Node, type PBRMaterial, type Scene, type ShaderMaterial } from "@babylonjs/core";
 import { CAR_FILE, CAR_HALF_L, CAR_HALF_W, SCALE, WHEELBASE, WHEEL_R } from "./Car";
 import { instantiate } from "./assets";
-import { ROAD_HALF, SURFACE, TILE, TRACK, heightAt, loopPose } from "./Track";
-import { clamp, group, setEuler, type Ctx, type DynamicCollider } from "./core";
+import { ROAD_HALF, SURFACE, TILE, TRACK, heightAt, loopPose, undergroundAt } from "./Track";
+import { clamp, group, points, setEuler, type Ctx, type DynamicCollider } from "./core";
 
 const wrap = (a: number) => {
   while (a > Math.PI) a -= Math.PI * 2;
@@ -64,7 +64,7 @@ function sampleIndex(s: number) {
 }
 
 /** The race car's palette texture with its red bodywork painted another colour (the hue of `color`). */
-async function paintedTexture(scene: Scene, color: string): Promise<Texture | null> {
+export async function paintedTexture(scene: Scene, color: string): Promise<Texture | null> {
   try {
     const buf = new Uint8Array(await (await fetch(`/models/${CAR_FILE}`)).arrayBuffer());
     const dv = new DataView(buf.buffer);
@@ -144,6 +144,8 @@ export class Rival {
   private pitch = 0;
   /** sideways speed from a knock (m/s, across the road), dying away */
   private knock = 0;
+  private lamps: { mat: ShaderMaterial; op: number }[] = [];
+  private lightsOn = 0;
   /** how fast it is moving across the road now (lane change + knock) */
   private latV = 0;
   /** knocked off its line: for this long it holds where it was put (doesn't steer back into you) */
@@ -170,6 +172,16 @@ export class Rival {
     this.lane = this.lat = LANES[lane];
     this.root = group(ctx, { parent });
     this.tilt = group(ctx, { parent: this.root });
+    // its lights, on only underground: headlamps in front, tail lights behind
+    this.lamps = ([
+      [2.18, "#fff4dc", 2.2, 0.9],
+      [-2.22, "#ff3b30", 1.8, 0.45],
+    ] as const).map(([z, color, size, op]) => {
+      const p = points(ctx, { positions: new Float32Array([-0.58, 0.6, z, 0.58, 0.6, z]), sizes: new Float32Array([size, size]), phases: new Float32Array(2), color, opacity: 0, speed: 0, pixel: 4, attenuate: true });
+      p.parent = this.tilt;
+      p.isPickable = false;
+      return { mat: p.material as ShaderMaterial, op };
+    });
     this.ready = instantiate(ctx, CAR_FILE, this.tilt, { scale: SCALE, cast: true, clone: true }).then(async (holder) => {
       for (const m of holder.getChildMeshes()) m.isPickable = false;
       for (const n of holder.getDescendants(false) as TransformNode[]) {
@@ -311,6 +323,9 @@ export class Rival {
   }
 
   private place(dt: number) {
+    // (lights on underground, eased)
+    this.lightsOn += (undergroundAt(this.s) - this.lightsOn) * Math.min(1, dt * 4);
+    for (const l of this.lamps) l.mat.setFloat("uOpacity", l.op * this.lightsOn);
     const S = TRACK.samples;
     const L = TRACK.length;
     const s = this.s;

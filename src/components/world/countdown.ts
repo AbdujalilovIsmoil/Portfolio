@@ -19,10 +19,12 @@ export class Countdown {
   constructor(
     private readonly ctx: Ctx,
     private readonly introRef: MutableRefObject<IntroSignal>,
-    private readonly play: PlaySignal
+    private readonly play: PlaySignal,
+    /** the cars held until GO (you; split screen, both players) */
+    private readonly cars = [ctx.vehicle]
   ) {
     this.introAt = introRef.current.value;
-    ctx.vehicle.frozen = true;
+    for (const c of cars) c.frozen = true;
     play.state = "intro";
     play.count = 3;
   }
@@ -47,7 +49,7 @@ export class Countdown {
       if (left <= 0) {
         play.state = "on";
         play.count = 0;
-        this.ctx.vehicle.frozen = false;
+        for (const c of this.cars) c.frozen = false;
       }
     }
     return play.state === "on";

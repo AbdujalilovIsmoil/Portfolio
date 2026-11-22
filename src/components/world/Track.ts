@@ -58,7 +58,7 @@ export const LAYOUT = "S S S GRID START S S S R3 S UP BR BR DN S R2 S S S HL S S
 
 /** The underground pieces, in tiles: how long the way down is, the bottom, the way up — and how deep the bottom is. */
 export const UNDER = {
-  SUB: { down: 3, flat: 5, up: 3, depth: 0.7 },
+  SUB: { down: 3, flat: 9, up: 3, depth: 0.7 },
   TUN: { down: 3, flat: 4, up: 3, depth: 0.45 },
 } as const;
 export type UnderCmd = keyof typeof UNDER;
@@ -96,6 +96,18 @@ export function underHoles(): [number, number, number, number][] {
     }
   }
   return out;
+}
+
+/**
+ * How far underground the road is at s along the lap: 0 up on the lawn … 1 from 3 m down (the cars
+ * switch their lights on as they go down into a tunnel or the aquarium, and off as they come up).
+ */
+export function undergroundAt(s: number) {
+  const L = TRACK.length;
+  const ss = ((s % L) + L) % L;
+  for (const u of TRACK.unders)
+    if (ss >= u.s0 && ss <= u.s0 + u.length) return Math.min(1, Math.max(0, (u.y0 - heightAt(ss)) / 3));
+  return 0;
 }
 
 /** Is (x, z) over an underground piece's dig (or its covered tunnel), `margin` metres round it included? */
@@ -518,9 +530,10 @@ export function setLayout(layout: string[]) {
 export const onMainCircuit = () => current === LAYOUT;
 
 /** Where the car starts: on the grid, just behind the start gantry, facing along the track. */
-export function startPose() {
+export function startPose(lateral = 0) {
   const s = sampleAt(TRACK.startS - TILE * 0.8);
-  return { x: s.x, z: s.z, heading: s.heading };
+  // (lateral: metres to the left of the centre line — split screen, the two players side by side)
+  return { x: s.x + Math.cos(s.heading) * lateral, z: s.z - Math.sin(s.heading) * lateral, heading: s.heading };
 }
 
 /** The sample at distance s along the lap (wraps). */

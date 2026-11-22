@@ -70,7 +70,9 @@ function jet(ctx: Ctx, name: string, width: number, mat: StandardMaterial, paren
   m.parent = parent;
   m.isPickable = false;
   m.alwaysSelectAsActiveMesh = true;
-  m.setEnabled(false);
+  // (always on, shrunk to nothing when the nitro is off: drawn from the start, so its shader is
+  // compiled while the race loads — not the first time Shift is pressed, mid-race)
+  m.scaling.setAll(0);
   return m;
 }
 
@@ -122,7 +124,7 @@ export function buildExhaust(ctx: Ctx, parent: Node) {
     glow.material = glowMat;
     glow.parent = tip;
     glow.isPickable = false;
-    glow.setEnabled(false);
+    glow.scaling.setAll(0);
     flames.push({ core, outer, glow, tip, seed: i * 17.3 });
   });
 
@@ -164,10 +166,12 @@ export function buildExhaust(ctx: Ctx, parent: Node) {
       level += ((on ? 1 : 0) - level) * Math.min(1, dt * (on ? 14 : 7));
       const shown = level > 0.02;
       for (const f of flames) {
-        f.core.setEnabled(shown);
-        f.outer.setEnabled(shown);
-        f.glow.setEnabled(shown);
-        if (!shown) continue;
+        if (!shown) {
+          f.core.scaling.setAll(0);
+          f.outer.scaling.setAll(0);
+          f.glow.scaling.setAll(0);
+          continue;
+        }
         // flicker: a jet that roars, never a steady cone
         const n1 = Math.sin(t * 61 + f.seed) * 0.5 + Math.sin(t * 37.7 + f.seed * 2) * 0.5;
         const n2 = Math.random();

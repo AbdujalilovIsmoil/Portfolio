@@ -1,12 +1,11 @@
 import { Color3, Matrix, Mesh, MeshBuilder, PBRMaterial, Quaternion, Texture, Vector3, VertexData, type Material, type Node } from "@babylonjs/core";
 import { loadContainer, thinCopies } from "./assets";
-import { lodModel, placeCopy } from "./lod";
-import { QUALITY } from "./performanceTier";
 import { buildBirds } from "./Birds";
 import { buildMountains } from "./Mountains";
 import { buildSky } from "./Sky";
-import { ROAD_HALF, SURFACE, TILE, TRACK, WALL_H, WALL_IN, WALL_T, boostPad, heightAt, loopPose, onDeck, overUnder, roadFrames, sampleAt, underHoles } from "./Track";
+import { ROAD_HALF, SURFACE, TILE, TRACK, WALL_H, WALL_IN, WALL_T, boostPad, heightAt, loopPose, nearLoop, onDeck, overUnder, roadFrames, sampleAt, underHoles } from "./Track";
 import { mainStraightEnd, reserved } from "./Zones";
+import { buildCity, pavementTexture, streetTexture } from "./City";
 import { canvasTexture, group, hash, lit, unlit, type Ctx } from "./core";
 
 /** Racing Kit props are a tile of 8 m (the road tiles are TILE). */
@@ -495,77 +494,12 @@ export function drawBoostPad(ctx: Ctx, parent: Node, pad: { s0: number; s1: numb
   return plate;
 }
 
-// ------------------------------------------------------------------ plants
-
-/**
- * One draw call per mesh of `file` for ALL of `spots` ([x, z, yaw, scale]); the models keep their
- * real-world size (Poly Haven assets are in metres), times `scale`, standing on the ground.
- */
-async function thinInstanceModel(ctx: Ctx, file: string, parent: Node, spots: [number, number, number, number][], cell = 130) {
-  if (!spots.length) return;
-  const c = await loadContainer(ctx, file);
-  const res = c.instantiateModelsToScene((n) => n, false);
-  const holder = group(ctx, { parent });
-  for (const r of res.rootNodes) r.parent = holder;
-  holder.computeWorldMatrix(true);
-  const { min, max } = holder.getHierarchyBoundingVectors(true);
-  const parts = holder.getChildMeshes(false).filter((mm): mm is Mesh => mm instanceof Mesh && mm.getTotalVertices() > 0);
-  // one mesh per material (a flower is a handful of stems sharing one): fewer draws
-  const byMaterial = new Map<unknown, Mesh[]>();
-  for (const p of parts) {
-    p.computeWorldMatrix(true);
-    byMaterial.set(p.material, [...(byMaterial.get(p.material) ?? []), p]);
-  }
-  const meshes: Mesh[] = [];
-  for (const list of byMaterial.values()) {
-    const merged = list.length > 1 ? Mesh.MergeMeshes(list, true, true) : null;
-    meshes.push(...(merged ? [merged] : list));
-  }
-  // the spots in patches of ground: each patch is its own copy, culled when it is off screen
-  const patches = new Map<string, [number, number, number, number][]>();
-  for (const sp of spots) {
-    const k = Math.floor(sp[0] / cell) + "," + Math.floor(sp[1] / cell);
-    patches.set(k, [...(patches.get(k) ?? []), sp]);
-  }
-  const centre = Matrix.Translation(-(min.x + max.x) / 2, -min.y, -(min.z + max.z) / 2);
-  for (const mesh of meshes) {
-    const local = mesh.computeWorldMatrix(true).clone();
-    mesh.parent = parent;
-    mesh.position.setAll(0);
-    mesh.rotationQuaternion = null;
-    mesh.rotation.setAll(0);
-    mesh.scaling.setAll(1);
-    // (each copy needs its own geometry: thin instances keep their matrices with it)
-    const copies = [...patches.values()].map((_, i) => {
-      if (i === 0) return mesh;
-      const c = mesh.clone(`${mesh.name}_patch${i}`, parent)!;
-      c.makeGeometryUnique();
-      return c;
-    });
-    [...patches.values()].forEach((list, i) => {
-      const m = copies[i];
-      const buf = new Float32Array(list.length * 16);
-      list.forEach(([x, z, yaw, s], j) => {
-        const place = Matrix.Compose(new Vector3(s, s, s), Quaternion.RotationAxis(Vector3.Up(), yaw), new Vector3(x, 0, z));
-        local.multiply(centre).multiply(place).copyToArray(buf, j * 16);
-      });
-      m.thinInstanceSetBuffer("matrix", buf, 16, true);
-      m.isPickable = false;
-      m.receiveShadows = true;
-      m.thinInstanceRefreshBoundingInfo(false);
-      m.freezeWorldMatrix();
-      m.doNotSyncBoundingInfo = true;
-    });
-  }
-  holder.dispose(true);
-}
-
 // ------------------------------------------------------------------ the circuit
 
 /**
  * The circuit: Racing Kit road tiles with their kerbs (re-surfaced in asphalt and grass), concrete
  * walls along the whole lap, grandstands and flags along the main straight, light gantries over the
- * hills, and real trees, shrubs and flowers (Poly Haven, life size) round it.
+ * hills, and a city round it (City.ts).
  */
 export function buildRaceTrack(ctx: Ctx, parent: Node, o: { boards: { x: number; z: number }[] }) {
   const root = group(ctx, { parent });
@@ -574,7 +508,8 @@ export function buildRaceTrack(ctx: Ctx, parent: Node, o: { boards: { x: number;
   // ---- the ground: a lawn to the mountains (2 cm under the tiles' verges)
   const ground = lawn(ctx, 2600, underHoles());
   const gm = lit(ctx, { rough: 1 });
-  gm.albedoTexture = grassTexture(ctx, 2600 / 5);
+  // (a city: the open ground is street asphalt; the blocks have their own pavements)
+  gm.albedoTexture = streetTexture(ctx, 2600 / 6);
   ground.material = gm;
   ground.position.y = -0.02;
   // pushed back in depth: where the tiles' own grass lies 2 cm above it, the tiles always win
@@ -589,7 +524,8 @@ export function buildRaceTrack(ctx: Ctx, parent: Node, o: { boards: { x: number;
   // ---- the road tiles (the start screen waits for these: you need them to drive), every copy of a
   // tile drawn in one go
   // re-surface the kit's flat colours: real asphalt, real grass (the kit's UVs run ~39 units a tile)
-  const tileGrass = grassTexture(ctx, 0.14);
+  // (the tiles' verges: pavement, not lawn, in town)
+  const tileGrass = pavementTexture(ctx, 0.14);
   const tileAsphalt = asphaltTexture(ctx, 0.1);
   const resurfaced = new Map<string, Promise<void>>();
   const resurface = (file: string) => {
@@ -674,65 +610,16 @@ export function buildRaceTrack(ctx: Ctx, parent: Node, o: { boards: { x: number;
   props.set("overheadLights.glb", { cast: true, places: gantries });
   for (const [file, { cast, places }] of props) thinCopies(ctx, file, root, places, { cast, background: true }).catch((e) => console.error(file, e));
 
-  // ---- real trees, shrubs and flowers (Poly Haven, life size)
-  const clearOf = (x: number, z: number, track: number, boards: number) =>
+  // ---- the city round the circuit (in place of the lawn's trees): kept clear of the track, its
+  // grandstands, the billboards and everything dug or raised for the road
+  const free = (x: number, z: number, margin: number) =>
     !reserved(x, z) &&
-    !TRACK.decks.some((d) => onDeck(d.pts, x, z, 6)) &&
-    !overUnder(x, z, 6) &&
-    TRACK.samples.every((q) => Math.hypot(q.x - x, q.z - z) > track) &&
-    o.boards.every((b) => Math.hypot(b.x - x, b.z - z) > boards);
-  const B = TRACK.bounds;
-  // jacaranda trees, 10–15 m tall: in the infield and round the outside. All of them on every
-  // device: one instance each of a single tree mesh (all the trees drawn in one go), each switching
-  // to a coarser level further off (nearer on a weaker device)
-  const treeModel = loadContainer(ctx, "jacaranda.glb").then((c) => lodModel(c, root, "jacaranda", [0.01, 0.022], [...QUALITY[ctx.quality].treeLod]));
-  const trees: [number, number][] = [];
-  const treeSpots: [number, number, number, number][] = [];
-  for (let tries = 0; trees.length < 56 && tries < 8000; tries++) {
-    const x = B.x0 - 40 + hash(tries, 41) * (B.x1 - B.x0 + 80);
-    const z = B.z0 - 40 + hash(tries, 42) * (B.z1 - B.z0 + 80);
-    if (!clearOf(x, z, WALL_IN + 11, 16) || trees.some(([px, pz]) => Math.hypot(px - x, pz - z) < 15)) continue;
-    trees.push([x, z]);
-    const height = 10 + hash(tries, 43) * 5;
-    // (the crown is about 1.25 × as wide as the tree is tall: fit its widest side)
-    treeSpots.push([x, z, height * 1.25, hash(tries, 45) * 6.28]);
-    colliders.push({ x, z, hx: 0.6, hz: 0.6 });
-  }
-  ctx.defer(() => treeModel.then((m) => treeSpots.forEach(([x, z, size, yaw]) => placeCopy(m, x, z, size, yaw))).catch((e) => console.error("trees", e)));
-  // shrubs in clumps round the trees and out in the open (they are low: by the wall they'd hide behind it)
-  const shrubs: [number, number, number, number][] = [];
-  for (const [x, z] of trees)
-    for (let k = 0; k < 5; k++) {
-      const a = hash(x + k, 55) * 6.28, r = 4 + hash(z + k, 56) * 6;
-      const sx = x + Math.cos(a) * r, sz = z + Math.sin(a) * r;
-      if (clearOf(sx, sz, WALL_IN + WALL_T + 5, 7)) shrubs.push([sx, sz, hash(k, 57) * 6.28, 3.2 + hash(x - k, 58) * 2]);
-    }
-  for (let tries = 0, n = 0; n < 120 && tries < 3000; tries++) {
-    const x = B.x0 - 30 + hash(tries, 71) * (B.x1 - B.x0 + 60);
-    const z = B.z0 - 30 + hash(tries, 72) * (B.z1 - B.z0 + 60);
-    if (!clearOf(x, z, WALL_IN + WALL_T + 6, 8)) continue;
-    shrubs.push([x, z, hash(tries, 73) * 6.28, 3 + hash(tries, 74) * 2.5]);
-    n++;
-  }
-  ctx.defer(() => thinInstanceModel(ctx, "shrub.glb", root, shrubs).catch(() => {}));
-  // a bed of flowers at the foot of every billboard — or, on a track without them, every so often
-  // beside the road
-  const FLOWERS = ["flower-empodium.glb", "flower-sorrel.glb", "flower-ursinia.glb"];
-  const beds = new Map<string, [number, number, number, number][]>(FLOWERS.map((f) => [f, []]));
-  const bedSpots: { x: number; z: number }[] = o.boards.length ? o.boards : [];
-  if (!bedSpots.length)
-    for (let s = 40, side = 1; s < TRACK.length - 20; s += 70, side = -side) {
-      const q = sampleAt(s);
-      const x = q.x + Math.cos(q.heading) * side * (0.5 * TILE + 8), z = q.z - Math.sin(q.heading) * side * (0.5 * TILE + 8);
-      if (clearOf(x, z, 0.5 * TILE + 5, 0)) bedSpots.push({ x, z });
-    }
-  bedSpots.forEach((b, n) => {
-    for (let k = 0; k < 12; k++) {
-      const a = hash(n * 31 + k, 61) * 6.28, r = 1.5 + hash(n * 17 + k, 62) * 4.5;
-      beds.get(FLOWERS[(n + k) % FLOWERS.length])!.push([b.x + Math.cos(a) * r, b.z + Math.sin(a) * r, hash(k, 63) * 6.28, 1.2 + hash(n, 64) * 0.4]);
-    }
-  });
-  for (const [file, spots] of beds) ctx.defer(() => thinInstanceModel(ctx, file, root, spots).catch(() => {}));
+    !nearLoop(x, z) &&
+    !TRACK.decks.some((d) => onDeck(d.pts, x, z, margin)) &&
+    !overUnder(x, z, margin) &&
+    TRACK.samples.every((q) => Math.hypot(q.x - x, q.z - z) > 0.5 * TILE + margin) &&
+    o.boards.every((b) => Math.hypot(b.x - x, b.z - z) > 10 + margin);
+  buildCity(ctx, root, free);
 
   buildSky(ctx, root);
   buildBirds(ctx, root, { x: 0, y: 10, z: 0 });

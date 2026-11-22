@@ -14,7 +14,7 @@ describe("the tracks", () => {
       expect(t.end.h).toEqual([0, 1]);
       expect(t.end.level).toBeCloseTo(0, 6);
       expect(t.length).toBeGreaterThan(700);
-      expect(t.length).toBeLessThan(2100);
+      expect(t.length).toBeLessThan(2300);
       const S = t.samples, L = t.length;
       const onLoop = (s: number) => !!t.loop && s >= t.loop.s0 && s <= t.loop.s0 + t.loop.length;
       for (let a = 0; a < S.length; a += 2)
